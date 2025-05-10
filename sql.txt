@@ -1,0 +1,246 @@
+-- 1. Şema’yı tamamen sıfırdan oluştur
+DROP SCHEMA IF EXISTS hastane;
+CREATE SCHEMA hastane
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_turkish_ci;
+USE hastane;
+
+-- 2. Doktor tablosu
+CREATE TABLE doktor (
+  kullanici_adi CHAR(11) NOT NULL PRIMARY KEY
+    CHECK (kullanici_adi REGEXP '^[1-9][0-9]{10}$'),
+  sifre         VARCHAR(255)   NOT NULL,
+  resim         VARCHAR(255)   NOT NULL,
+  email         VARCHAR(100)   NOT NULL UNIQUE,
+  dogum_tarihi  DATE,
+  cinsiyet      ENUM('E','K','D') DEFAULT 'E',
+  isim          VARCHAR(100)   NOT NULL,
+  sehir         VARCHAR(50)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 3. Hasta tablosu
+CREATE TABLE hasta (
+  kullanici_adi CHAR(11) NOT NULL PRIMARY KEY
+    CHECK (kullanici_adi REGEXP '^[1-9][0-9]{10}$'),
+  sifre         VARCHAR(255)   NOT NULL,
+  resim         VARCHAR(255)   NOT NULL,
+  email         VARCHAR(100)   NOT NULL UNIQUE,
+  dogum_tarihi  DATE,
+  cinsiyet      ENUM('E','K','D') DEFAULT 'E',
+  isim          VARCHAR(100)   NOT NULL,
+  sehir         VARCHAR(50),
+  doktor_tc     CHAR(11)       NOT NULL,
+  FOREIGN KEY (doktor_tc)
+    REFERENCES doktor(kullanici_adi)
+      ON UPDATE CASCADE
+      ON DELETE CASCADE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 4. Semptom türleri referans tablosu
+CREATE TABLE semptom_turleri (
+  id   INT AUTO_INCREMENT PRIMARY KEY,
+  tur  VARCHAR(100) NOT NULL UNIQUE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 5. Belirti (semptom) kayıtları
+CREATE TABLE tbl_semptom (
+  hasta_tc       CHAR(11)   NOT NULL,
+  tarih_saat     DATETIME   NOT NULL,
+  semptom_tur_id INT        NOT NULL,
+  aciklama       TEXT,
+  PRIMARY KEY (hasta_tc, tarih_saat, semptom_tur_id),
+  FOREIGN KEY (hasta_tc)
+    REFERENCES hasta(kullanici_adi)
+      ON UPDATE CASCADE
+      ON DELETE CASCADE,
+  FOREIGN KEY (semptom_tur_id)
+    REFERENCES semptom_turleri(id)
+      ON UPDATE CASCADE
+      ON DELETE RESTRICT
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 6. Diyet türleri referans tablosu
+CREATE TABLE diyet_turleri (
+  id   INT AUTO_INCREMENT PRIMARY KEY,
+  tur  VARCHAR(50) NOT NULL UNIQUE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 7. Diyet planı kayıtları
+CREATE TABLE tbl_diyet_plani (
+  hasta_tc      CHAR(11) NOT NULL,
+  tarih_saat    DATETIME NOT NULL,
+  diyet_tur_id  INT      NOT NULL,
+  PRIMARY KEY (hasta_tc, tarih_saat, diyet_tur_id),
+  FOREIGN KEY (hasta_tc)
+    REFERENCES hasta(kullanici_adi)
+      ON UPDATE CASCADE
+      ON DELETE CASCADE,
+  FOREIGN KEY (diyet_tur_id)
+    REFERENCES diyet_turleri(id)
+      ON UPDATE CASCADE
+      ON DELETE RESTRICT
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 8. Egzersiz türleri referans tablosu
+CREATE TABLE egzersiz_turleri (
+  id   INT AUTO_INCREMENT PRIMARY KEY,
+  tur  VARCHAR(50) NOT NULL UNIQUE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 9. Egzersiz öneri kayıtları
+CREATE TABLE tbl_egzersiz_oneri (
+  hasta_tc        CHAR(11) NOT NULL,
+  tarih_saat      DATETIME NOT NULL,
+  egzersiz_tur_id INT      NOT NULL,
+  PRIMARY KEY (hasta_tc, tarih_saat, egzersiz_tur_id),
+  FOREIGN KEY (hasta_tc)
+    REFERENCES hasta(kullanici_adi)
+      ON UPDATE CASCADE
+      ON DELETE CASCADE,
+  FOREIGN KEY (egzersiz_tur_id)
+    REFERENCES egzersiz_turleri(id)
+      ON UPDATE CASCADE
+      ON DELETE RESTRICT
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 10. Kan şekeri ölçümleri
+CREATE TABLE tbl_olcum (
+  hasta_tc    CHAR(11) NOT NULL,
+  tarih_saat  DATETIME NOT NULL,
+  seviye_mgdl SMALLINT NOT NULL,
+  tur         ENUM('Sabah','Öğle','İkindi','Akşam','Gece') NOT NULL,
+  PRIMARY KEY (hasta_tc, tarih_saat),
+  FOREIGN KEY (hasta_tc)
+    REFERENCES hasta(kullanici_adi)
+      ON UPDATE CASCADE
+      ON DELETE CASCADE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 11. İnsülin uygulama kayıtları
+CREATE TABLE tbl_insulin (
+  hasta_tc   CHAR(11) NOT NULL,
+  tarih_saat DATETIME NOT NULL,
+  birim_u    SMALLINT NOT NULL,
+  PRIMARY KEY (hasta_tc, tarih_saat),
+  FOREIGN KEY (hasta_tc)
+    REFERENCES hasta(kullanici_adi)
+      ON UPDATE CASCADE
+      ON DELETE CASCADE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 12. Egzersiz uyum takibi
+CREATE TABLE tbl_egzersiz_takip (
+  hasta_tc   CHAR(11) NOT NULL,
+  tarih_saat DATETIME NOT NULL,
+  yapildi    BOOLEAN  NOT NULL,
+  PRIMARY KEY (hasta_tc, tarih_saat),
+  FOREIGN KEY (hasta_tc)
+    REFERENCES hasta(kullanici_adi)
+      ON UPDATE CASCADE
+      ON DELETE CASCADE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 13. Diyet uyum takibi
+CREATE TABLE tbl_diyet_takip (
+  hasta_tc   CHAR(11) NOT NULL,
+  tarih_saat DATETIME NOT NULL,
+  uygulandi  BOOLEAN  NOT NULL,
+  PRIMARY KEY (hasta_tc, tarih_saat),
+  FOREIGN KEY (hasta_tc)
+    REFERENCES hasta(kullanici_adi)
+      ON UPDATE CASCADE
+      ON DELETE CASCADE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
+-- 14. Uyarılar tablosu
+CREATE TABLE uyarilar (
+  hasta_tc   CHAR(11) NOT NULL,
+  tarih_saat DATETIME NOT NULL,
+  mesaj      TEXT     NOT NULL,
+  okundu     BOOLEAN  NOT NULL DEFAULT FALSE,
+  PRIMARY KEY (hasta_tc, tarih_saat, mesaj(100)),
+  FOREIGN KEY (hasta_tc)
+    REFERENCES hasta(kullanici_adi)
+      ON UPDATE CASCADE
+      ON DELETE CASCADE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+  
+  
+ INSERT INTO doktor (
+  kullanici_adi,
+  sifre,
+  resim,
+  email,
+  dogum_tarihi,
+  cinsiyet,
+  isim,
+  sehir
+) VALUES
+  ('12345678901', 'Sifre123!', 'https://via.placeholder.com/150?text=Dr+Eray',   'eray.yilmaz@ornek.com',  '1980-05-10', 'E', 'Eray Yılmaz',  'Ankara'),
+  ('23456789012', 'Gizli!456',  'https://via.placeholder.com/150?text=Dr+Ayla',   'ayla.demir@ornek.com',   '1975-11-22', 'K', 'Ayla Demir',   'İstanbul'),
+  ('34567890123', 'P4ssw0rd$',  'https://via.placeholder.com/150?text=Dr+Meltem','meltem.kaya@ornek.com', '1988-03-15', 'K', 'Meltem Kaya',  'İzmir');
+ INSERT INTO semptom_turleri (tur) VALUES
+  ('Poliüri'),('Polifaji'),('Polidipsi'),
+  ('Nöropati'),('Kilo Kaybı'),('Yorgunluk'),
+  ('Bulanık Görme'),('Yaraların Yavaş İyileşmesi');
+
+INSERT INTO diyet_turleri (tur) VALUES
+  ('Az Şekerli Diyet'),('Şekersiz Diyet'),('Dengeli Beslenme');
+
+INSERT INTO egzersiz_turleri (tur) VALUES
+  ('Yürüyüş'),('Bisiklet'),('Klinik Egzersiz');
+  
+  
+---------------------------------------------------------------------------
+
+
+-- 1. Veritabanı varsayılanını ayarla
+ALTER DATABASE hastane
+  CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_turkish_ci;
+
+-- 2. Her tabloyu yeniden dönüştür
+ALTER TABLE doktor
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_turkish_ci;
+ALTER TABLE hasta
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_turkish_ci;
+ALTER TABLE tbl_olcum
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_turkish_ci;
+ALTER TABLE tbl_semptom
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_turkish_ci;
+ALTER TABLE tbl_egzersiz_oneri
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_turkish_ci;
+ALTER TABLE tbl_diyet_plani
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_turkish_ci;
+ALTER TABLE tbl_egzersiz_takip
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_turkish_ci;
+ALTER TABLE tbl_diyet_takip
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_turkish_ci;
+ALTER TABLE tbl_insulin
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_turkish_ci;
