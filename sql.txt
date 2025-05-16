@@ -190,6 +190,21 @@ CREATE TABLE uyarilar (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_turkish_ci;
+
+-- 15. Doktor manuel kan şekeri ölçüm kaydı tablosu
+CREATE TABLE doktor_kan_olcum (
+  hasta_tc    CHAR(11) NOT NULL,
+  tarih_saat  DATETIME NOT NULL,
+  seviye_mgdl SMALLINT NOT NULL,
+  PRIMARY KEY (hasta_tc, tarih_saat),
+  FOREIGN KEY (hasta_tc)
+    REFERENCES hasta(kullanici_adi)
+      ON UPDATE CASCADE
+      ON DELETE CASCADE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_turkish_ci;
+
   
   
  INSERT INTO doktor (

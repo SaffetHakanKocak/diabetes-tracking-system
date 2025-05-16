@@ -1,7 +1,7 @@
 DB_CONFIG = {
     "host": "localhost",
     "user": "root",
-    "password": "Shkaek42",
+    "password": "Yasif146.",
     "database": "hastane",
     "charset": "utf8mb4",
     "use_unicode": True
@@ -9,8 +9,8 @@ DB_CONFIG = {
 
 
 EMAIL_CONFIG = {
-    'email': 'saffethakankocak42@gmail.com',
-    'password': 'pkml bdes ifll zpgz'  # Google app password kullanılmalı!
+    'email': 'arizlihastane4210@gmail.com',
+    'password': 'stue lofb sdem lccm'  # Google app password kullanılmalı!
 }
 
 HASH_ROUNDS = 12
