@@ -14,7 +14,7 @@ from datetime import datetime, time, date
 from zoneinfo import ZoneInfo
 import random
 from datetime import datetime
-
+#denemeeeeeeeeeeeeeeee
 # — EKLENECEK: Ölçüm aralıkları sabitleri
 VALID_WINDOWS = {
     'Sabah':  (time(7,0),  time(8,0)),
@@ -46,9 +46,10 @@ def get_recommendation(seviye, semptoms):
     döndürür: (diyet_türü veya None, egzersiz_türü veya None)
     """
     for cond, rule_syms, diet, ex in RECOMMENDATION_RULES:
-        if cond(seviye) and any(s in semptoms for s in rule_syms):
+        # artık rule_syms listesindeki tüm semptomlar semptoms içinde olmalı
+        if cond(seviye) and all(s in semptoms for s in rule_syms):
             return diet, ex
-    # hiçbir kural tetiklenmediyse
+    # hiçbir kural tam eşleşme sağlamadıysa
     return None, None
 
 # — EKLENECEK: İnsülin dozu hesaplama fonksiyonu
@@ -765,33 +766,45 @@ class EgzersizOnerFrame(tk.Frame):
             conn = mysql.connector.connect(**DB_CONFIG)
             cur = conn.cursor()
 
-            cur.execute("SELECT seviye_mgdl FROM doktor_kan_olcum WHERE hasta_tc=%s ORDER BY tarih_saat DESC LIMIT 1", (tc,))
-            seviye_row = cur.fetchone()
-            seviye = seviye_row[0] if seviye_row else None
+            # Son glukoz seviyesi
+            cur.execute(
+                "SELECT seviye_mgdl "
+                "FROM doktor_kan_olcum "
+                "WHERE hasta_tc=%s "
+                "ORDER BY tarih_saat DESC LIMIT 1",
+                (tc,)
+            )
+            row = cur.fetchone()
+            seviye = row[0] if row else None
 
+            # Tüm semptomları çek
             cur.execute("""
-                SELECT st.tur FROM tbl_semptom s
+                SELECT st.tur
+                FROM tbl_semptom s
                 JOIN semptom_turleri st ON s.semptom_tur_id = st.id
-                WHERE s.hasta_tc = %s ORDER BY s.tarih_saat DESC LIMIT 1
+                WHERE s.hasta_tc = %s
             """, (tc,))
-            semptom_row = cur.fetchone()
-            semptom = semptom_row[0] if semptom_row else None
+            semptom_rows = cur.fetchall()
+            semptoms = [t for (t,) in semptom_rows]
 
+            # Egzersiz türlerini çek
             cur.execute("SELECT id, tur FROM egzersiz_turleri")
             self.egz_turleri = cur.fetchall()
-
             all_exercises = [tur for _, tur in self.egz_turleri]
 
+            # Öneri hesapla
             exercise = None
-            if seviye is not None and semptom is not None:
-                _, exercise = get_recommendation(seviye, [semptom])
+            if seviye is not None:
+                _, exercise = get_recommendation(seviye, semptoms)
 
+            # Menüye ekle
             menu = self.egz_menu["menu"]
             menu.delete(0, "end")
             for val in all_exercises:
                 menu.add_command(label=val, command=lambda v=val: self.egz_var.set(v))
 
-            if exercise and exercise in all_exercises:
+            # Varsayılan seçim
+            if exercise in all_exercises:
                 self.egz_var.set(exercise)
             elif all_exercises:
                 self.egz_var.set(all_exercises[0])
@@ -808,7 +821,9 @@ class EgzersizOnerFrame(tk.Frame):
         egz_tur = self.egz_var.get()
 
         try:
-            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S").replace(tzinfo=ZoneInfo("Europe/Istanbul"))
+            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S").replace(
+                tzinfo=ZoneInfo("Europe/Istanbul")
+            )
             tr = dt.strftime("%Y-%m-%d %H:%M:%S")
 
             conn = mysql.connector.connect(**DB_CONFIG)
@@ -817,7 +832,8 @@ class EgzersizOnerFrame(tk.Frame):
             egz_id = next(i for i, tur in self.egz_turleri if tur == egz_tur)
 
             cur.execute(
-                "INSERT INTO tbl_egzersiz_oneri (hasta_tc, tarih_saat, egzersiz_tur_id) VALUES (%s, %s, %s)",
+                "INSERT INTO tbl_egzersiz_oneri (hasta_tc, tarih_saat, egzersiz_tur_id) "
+                "VALUES (%s, %s, %s)",
                 (tc, tr, egz_id)
             )
 
@@ -832,7 +848,6 @@ class EgzersizOnerFrame(tk.Frame):
             messagebox.showerror("Geçersiz Tarih", "Lütfen DD.MM.YYYY HH:MM:SS formatında tarih girin.")
         except Exception as e:
             messagebox.showerror("Hata", e)
-
 # -----------------------------------------------------
 # Doktor için Diyet Planı
 # -----------------------------------------------------
