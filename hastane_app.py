@@ -1895,33 +1895,178 @@ class DoctorGraphFrame(tk.Frame):
 
 class PatientGraphFrame(tk.Frame):
     def __init__(self, parent, controller):
-        super().__init__(parent); self.controller = controller
-        tk.Label(self, text="Günlük Kan Şekeri + Ortalama", font=("Arial",16,"bold")).pack(pady=10)
-        tk.Button(self, text="Grafiğe Dön", command=self.plot).pack(pady=5)
-        tk.Button(self, text="Geri",      command=controller.go_back).pack(pady=5)
+        super().__init__(parent)
+        self.controller = controller
+
+        # Başlık
+        tk.Label(self, text="Günlük Kan Şekeri Değerleri", font=("Arial", 16, "bold")).pack(pady=10)
+
+        # Seçim ve kontrol butonları
+        btnf = tk.Frame(self)
+        btnf.pack(pady=5)
+
+        # Tarih seçimi
+        tk.Label(btnf, text="Tarih (GG.AA.YYYY):").pack(side="left", padx=5)
+        self.date_var = tk.StringVar(value=datetime.now().strftime("%d.%m.%Y"))
+        self.date_entry = tk.Entry(btnf, textvariable=self.date_var, width=10)
+        self.date_entry.pack(side="left", padx=5)
+        tk.Button(btnf, text="Tarihe Göre Grafik Göster", command=self.plot_for_selected).pack(side="left", padx=5)
+
+        # Tablo görünümü
+        tk.Button(btnf, text="Kayıtlı Ölçümler ve Günlük Ortalamalar", command=self.show_tables).pack(side="left", padx=5)
+        # Yenile ve geri
+        tk.Button(btnf, text="Yenile", command=self.refresh_current).pack(side="left", padx=5)
+        tk.Button(btnf, text="Geri", command=controller.go_back).pack(side="left", padx=5)
+
+        # Grafik ve tablo tutucular
         self.canvas = None
+        self.table = None
+        self.mode = 'daily'
 
-    def plot(self):
-        tc = self.controller.current_user_tc
-        conn = mysql.connector.connect(**DB_CONFIG); cur=conn.cursor()
-        # günlük ortalama
-        cur.execute("""
-            SELECT DATE(tarih_saat), AVG(seviye_mgdl)
-            FROM tbl_olcum
-            WHERE hasta_tc=%s
-            GROUP BY DATE(tarih_saat)
-            ORDER BY DATE(tarih_saat)
-        """, (tc,))
-        data = cur.fetchall(); cur.close(); conn.close()
-        dates = [d[0] for d in data]; avgs = [d[1] for d in data]
-        fig, ax = plt.subplots()
-        ax.bar(dates, avgs)
-        ax.set_title("Günlük Ortalama Kan Şekeri")
-        ax.set_xlabel("Tarih"), ax.set_ylabel("mg/dL")
-        if self.canvas: self.canvas.get_tk_widget().destroy()
+    def tkraise(self, above=None):
+        super().tkraise(above)
+        # Ekran gelince seçili moda göre göster
+        if self.mode == 'table':
+            self.show_tables()
+        else:
+            self.plot_daily()
+
+    def _clear_visuals(self):
+        if self.canvas:
+            self.canvas.get_tk_widget().pack_forget()
+            plt.close('all')
+            self.canvas = None
+        if self.table:
+            self.table.destroy()
+            self.table = None
+
+    def _draw(self, fig):
+        self._clear_visuals()
         self.canvas = FigureCanvasTkAgg(fig, master=self)
-        self.canvas.draw(); self.canvas.get_tk_widget().pack()
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill="both", expand=True)
 
+    def plot_daily(self):
+        self.mode = 'daily'
+        self._clear_visuals()
+        tc = self.controller.current_user_tc
+        today = datetime.now().strftime("%Y-%m-%d")
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT DATE_FORMAT(tarih_saat, '%H:%i'), seviye_mgdl "
+            "FROM tbl_olcum "
+            "WHERE hasta_tc=%s AND DATE(tarih_saat)=%s "
+            "ORDER BY tarih_saat",
+            (tc, today)
+        )
+        data = cur.fetchall()
+        cur.close(); conn.close()
+
+        times = [row[0] for row in data]
+        values = [row[1] for row in data]
+
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.plot(times, values, marker='o', linestyle='-')
+        ax.set_title(f"{datetime.now().strftime('%d.%m.%Y')} Tarihli Kan Şekeri Değerleri")
+        ax.set_xlabel("Saat")
+        ax.set_ylabel("mg/dL")
+        ax.grid(True)
+        fig.autofmt_xdate()
+
+        self._draw(fig)
+
+    def plot_for_selected(self):
+        date_str = self.date_var.get().strip()
+        try:
+            dt = datetime.strptime(date_str, "%d.%m.%Y")
+        except ValueError:
+            messagebox.showerror("Geçersiz Tarih", "Tarih GG.AA.YYYY formatında olmalı.")
+            return
+        self.mode = 'daily'
+        self._clear_visuals()
+        tc = self.controller.current_user_tc
+        date_mysql = dt.strftime("%Y-%m-%d")
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT DATE_FORMAT(tarih_saat, '%H:%i'), seviye_mgdl "
+            "FROM tbl_olcum "
+            "WHERE hasta_tc=%s AND DATE(tarih_saat)=%s "
+            "ORDER BY tarih_saat",
+            (tc, date_mysql)
+        )
+        data = cur.fetchall()
+        cur.close(); conn.close()
+
+        times = [row[0] for row in data]
+        values = [row[1] for row in data]
+
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.plot(times, values, marker='o', linestyle='-')
+        ax.set_title(f"{date_str} Tarihli Kan Şekeri Değerleri")
+        ax.set_xlabel("Saat")
+        ax.set_ylabel("mg/dL")
+        ax.grid(True)
+        fig.autofmt_xdate()
+
+        self._draw(fig)
+
+    def show_tables(self):
+        self.mode = 'table'
+        self._clear_visuals()
+        tc = self.controller.current_user_tc
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        # Tüm kayıtlı ölçümler
+        cur.execute(
+            "SELECT DATE_FORMAT(tarih_saat, '%d.%m.%Y %H:%i'), seviye_mgdl "
+            "FROM tbl_olcum "
+            "WHERE hasta_tc=%s "
+            "ORDER BY tarih_saat",
+            (tc,)
+        )
+        measurements = cur.fetchall()
+        # Günlük ortalamalar
+        cur.execute(
+            "SELECT DATE(tarih_saat), ROUND(AVG(seviye_mgdl),1) "
+            "FROM tbl_olcum "
+            "WHERE hasta_tc=%s "
+            "GROUP BY DATE(tarih_saat) "
+            "ORDER BY DATE(tarih_saat)",
+            (tc,)
+        )
+        averages = cur.fetchall()
+        cur.close(); conn.close()
+
+        # Tablo oluştur
+        self.table = ttk.Treeview(self, columns=("col1","col2"), show="headings", height=20)
+        self.table.heading("col1", text="Zaman")
+        self.table.heading("col2", text="Değer / Ortalama")
+        self.table.column("col1", anchor="center", width=200)
+        self.table.column("col2", anchor="center", width=200)
+
+        # Satır ekleme
+        self.table.insert("", "end", values=("=== Tüm Kayıtlı Ölçümler ===",""))
+        for i, (zaman, deger) in enumerate(measurements):
+            tag = 'even' if i % 2 == 0 else 'odd'
+            self.table.insert("", "end", values=(zaman, deger), tags=(tag,))
+        self.table.insert("", "end", values=("=== Günlük Ortalamalar ===",""))
+        for j, (tarih, ort) in enumerate(averages):
+            tag = 'even' if j % 2 == 0 else 'odd'
+            self.table.insert("", "end", values=(tarih.strftime("%d.%m.%Y"), ort), tags=(tag,))
+
+        # Satır renkleri
+        self.table.tag_configure('even', background='#f0f0ff')
+        self.table.tag_configure('odd', background='#ffffff')
+
+        self.table.pack(padx=20, pady=10, fill="both", expand=True)
+
+    def refresh_current(self):
+        if self.mode == 'table':
+            self.show_tables()
+        else:
+            self.plot_daily()
 
 class InsulinViewFrame(tk.Frame):
     def __init__(self, parent, controller):
