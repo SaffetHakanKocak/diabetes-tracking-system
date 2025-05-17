@@ -17,11 +17,11 @@ from datetime import datetime
 #denemeeeeeeeeeeeeeeee
 # — EKLENECEK: Ölçüm aralıkları sabitleri
 VALID_WINDOWS = {
-    'Sabah':  (time(7,0),  time(8,0)),
-    'Öğle':   (time(12,0), time(13,0)),
-    'İkindi': (time(15,0), time(16,0)),
-    'Akşam':  (time(18,0), time(19,0)),
-    'Gece':   (time(22,0), time(23,0)),
+    'Sabah':  (datetime.strptime("07:00", "%H:%M").time(),  datetime.strptime("08:00", "%H:%M").time()),
+    'Öğle':   (datetime.strptime("12:00", "%H:%M").time(),  datetime.strptime("13:00", "%H:%M").time()),
+    'İkindi': (datetime.strptime("15:00", "%H:%M").time(),  datetime.strptime("16:00", "%H:%M").time()),
+    'Akşam':  (datetime.strptime("18:00", "%H:%M").time(),  datetime.strptime("19:00", "%H:%M").time()),
+    'Gece':   (datetime.strptime("22:00", "%H:%M").time(),  datetime.strptime("23:00", "%H:%M").time()),
 }
 
 # 1) Kodunuzun en üstüne ekleyin:
@@ -1170,8 +1170,7 @@ class OlcumEntryFrame(tk.Frame):
         # Girdi alanları
         self.tarih = tk.Entry(form, font=("Arial", 12), width=25)
         self.tarih.grid(row=0, column=1, padx=10, pady=8)
-        self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))  # ← burası değiştirildi
-
+        self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 
         self.seviye = tk.Entry(form, font=("Arial", 12), width=25)
         self.seviye.grid(row=1, column=1, padx=10, pady=8)
@@ -1191,72 +1190,153 @@ class OlcumEntryFrame(tk.Frame):
 
     def save(self):
         tc       = self.controller.current_user_tc
-        tr_input = self.tarih.get().strip()       # DD.MM.YYYY HH:MM:SS
-        sv       = int(self.seviye.get())
+        tr_input = self.tarih.get().strip()       # "DD.MM.YYYY HH:MM:SS"
+        try:
+            sv = int(self.seviye.get())
+        except ValueError:
+            messagebox.showerror("Hata", "Seviye sayısal olmalı.")
+            return
         tur      = self.tur_var.get()
 
         try:
-            # — Tarih parse & format —
+            # Tarih parse & MySQL format
             dt_local = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S") \
-                              .replace(tzinfo=ZoneInfo("Europe/Istanbul"))
-            tr = dt_local.strftime("%Y-%m-%d %H:%M:%S")
+                             .replace(tzinfo=ZoneInfo("Europe/Istanbul"))
+            tr_mysql = dt_local.strftime("%Y-%m-%d %H:%M:%S")
 
             conn = mysql.connector.connect(**DB_CONFIG)
-            cur  = conn.cursor()
+            cur  = conn.cursor(buffered=True)
 
-            # 1) Ölçümü kaydet
+            cur.execute(
+                "SELECT 1 FROM tbl_olcum "
+                "WHERE hasta_tc=%s AND tur=%s AND DATE(tarih_saat)=DATE(%s)",
+                (tc, tur, tr_mysql)
+            )
+            if cur.fetchone():
+                messagebox.showerror(
+                    "Hata",
+                    f"Bugün için zaten “{tur}” ölçümü kaydedilmiş, tekrar eklenemez."
+                )
+                cur.close()
+                conn.close()
+                return
+            
+            # 1) Ölçümü tabloya her koşulda kaydet
             cur.execute(
                 "INSERT INTO tbl_olcum (hasta_tc, tarih_saat, seviye_mgdl, tur) "
                 "VALUES (%s, %s, %s, %s)",
-                (tc, tr, sv, tur)
+                (tc, tr_mysql, sv, tur)
             )
-
-            # 2) Kritik seviye uyarıları (aynı kod bloğu)
+            """
+            # 2) Kritik seviye uyarıları
             if sv < 70:
-                tip = "Acil Uyarı"
-                msg = "Hastanın kan şekeri seviyesi 70 mg/dL'nin altına düştü."
+                tip, msg = "Acil Uyarı", "Hastanın kan şekeri seviyesi 70 mg/dL'nin altına düştü."
             elif sv > 200:
-                tip = "Acil Müdahale Uyarısı"
-                msg = "Hastanın kan şekeri 200 mg/dL'nin üzerinde."
+                tip, msg = "Acil Müdahale Uyarısı", "Hastanın kan şekeri 200 mg/dL'nin üzerinde."
             elif 111 <= sv <= 150:
-                tip = "Takip Uyarısı"
-                msg = "Kan şekeri 111–150 mg/dL arasında. İzlenmeli."
+                tip, msg = "Takip Uyarısı", "Kan şekeri 111–150 mg/dL arasında. İzlenmeli."
             elif 151 <= sv <= 200:
-                tip = "İzleme Uyarısı"
-                msg = "Kan şekeri 151–200 mg/dL arasında. Kontrol gerekli."
+                tip, msg = "İzleme Uyarısı", "Kan şekeri 151–200 mg/dL arasında. Kontrol gerekli."
             else:
                 tip = None
 
             if tip:
                 cur.execute(
                     "INSERT INTO uyarilar (hasta_tc, tarih_saat, mesaj) VALUES (%s, %s, %s)",
-                    (tc, tr, msg)
+                    (tc, tr_mysql, msg)
                 )
                 messagebox.showwarning(tip, msg)
-
-            # 3) Saat aralığı kontrolü
-            start, end = VALID_WINDOWS[tur]
-            saat = dt_local.timetz().replace(tzinfo=None)
-            if not (start <= saat <= end):
+            """
+            # 3) Zaman aralığı kontrolü: yeni ölçüm için uyarı
+            start_new, end_new = VALID_WINDOWS[tur]
+            if not (start_new <= dt_local.time() <= end_new):
                 msg2 = "Ölçüm zamanı aralık dışında; ortalamaya dahil edilmeyecek."
                 cur.execute(
                     "INSERT INTO uyarilar (hasta_tc, tarih_saat, mesaj) VALUES (%s, %s, %s)",
-                    (tc, tr, msg2)
+                    (tc, tr_mysql, msg2)
                 )
-                messagebox.showwarning("Zaman Uyarısı", msg2)
+                messagebox.showwarning("Ölçüm Eksik", msg2)
 
-            # 4) İnsülin dozu ve plan/egzersiz önerileri…
-            avg, dose = get_insulin_dose_for_day(conn, tc, tr)
+            # 3.5) Önceki öğün türleri için eksik kontrolü
+            measurement_order = ['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Gece']
+            idx = measurement_order.index(tur)
+            for prev in measurement_order[:idx]:
+                cur.execute(
+                    "SELECT 1 FROM tbl_olcum "
+                    "WHERE hasta_tc=%s AND DATE(tarih_saat)=DATE(%s) AND tur=%s",
+                    (tc, tr_mysql, prev)
+                )
+                if not cur.fetchone():
+                    msg_prev = f"{prev} ölçümü eksik! Ortalama alınırken bu ölçüm hesaba katılmadı."
+                    cur.execute(
+                        "INSERT INTO uyarilar (hasta_tc, tarih_saat, mesaj) VALUES (%s, %s, %s)",
+                        (tc, tr_mysql, msg_prev)
+                    )
+                    messagebox.showwarning("Ölçüm Eksik", msg_prev)
+
+
+
+
+            # 4) Günün tüm ölçümlerini çek ama her biri kendi tür penceresinde filtrelensin
+            cur.execute(
+                "SELECT tarih_saat, seviye_mgdl, tur "
+                "FROM tbl_olcum "
+                "WHERE hasta_tc=%s AND DATE(tarih_saat)=DATE(%s)",
+                (tc, tr_mysql)
+            )
+            rows = cur.fetchall()
+
+            valid_levels = []
+            for ts, level, ttype in rows:
+                start, end = VALID_WINDOWS[ttype]     # burada ttype’a göre pencere alıyoruz
+                if start <= ts.time() <= end:
+                    valid_levels.append(level)
+                # not: eski kayıtlar için uyarı üretmiyoruz
+
+            # devamında valid_levels üzerinden ortalama hesaplanır…
+
+
+            # 5) Yetersiz veri kontrolü
+            if len(valid_levels) < 3:
+                msg3 = "Yetersiz veri! Ortalama hesaplaması güvenilir değildir."
+                cur.execute(
+                    "INSERT INTO uyarilar (hasta_tc, tarih_saat, mesaj) VALUES (%s, %s, %s)",
+                    (tc, tr_mysql, msg3)
+                )
+                messagebox.showwarning("Yetersiz Veri", msg3)
+
+            # 6) Ortalama ve insülin dozu hesaplama
+            avg = (sum(valid_levels) / len(valid_levels)) if valid_levels else 0.0
+            if avg <= 110:
+                dose = 0
+            elif avg <= 150:
+                dose = 1
+            elif avg <= 200:
+                dose = 2
+            else:
+                dose = 3
+            if dose == 0:
+                cur.execute(
+                    "INSERT INTO tbl_insulin (hasta_tc, tarih_saat, birim_u) VALUES (%s, %s, %s)",
+                    (tc, tr_mysql, dose)
+                )
+                messagebox.showinfo(
+                    "İnsülin Önerisi",
+                    f"Ort. kan şekeri {avg:.1f} mg/dL İnsülin önerisi yok."
+                )
+
+                
             if dose > 0:
                 cur.execute(
                     "INSERT INTO tbl_insulin (hasta_tc, tarih_saat, birim_u) VALUES (%s, %s, %s)",
-                    (tc, tr, dose)
+                    (tc, tr_mysql, dose)
                 )
-                messagebox.showinfo("İnsülin Önerisi",
-                                    f"Günlük ort. kan şekeri: {avg:.1f} mg/dL → {dose} ml")
+                messagebox.showinfo(
+                    "İnsülin Önerisi",
+                    f"Ort. kan şekeri {avg:.1f} mg/dL Sistem tarafından {dose} ml insülin öneriliyor."
+                )
 
-            # (Opsiyonel: semptom+öneri blokları burada da eklenebilir)
-
+            # 7) Commit & cleanup
             conn.commit()
             cur.close()
             conn.close()
@@ -1270,34 +1350,7 @@ class OlcumEntryFrame(tk.Frame):
                 "Lütfen DD.MM.YYYY HH:MM:SS formatında girin."
             )
         except Exception as e:
-            messagebox.showerror("Hata", e)
-
-            # İnsülin dozu hesapla ve kaydet
-            avg, dose = get_insulin_dose_for_day(conn, tc, tr)
-            if dose > 0:
-                cur.execute(
-                    "INSERT INTO tbl_insulin (hasta_tc, tarih_saat, birim_u) VALUES (%s,%s,%s)",
-                    (tc, tr, dose)
-                )
-                messagebox.showinfo(
-                    "İnsülin Önerisi",
-                    f"Günlük ort. kan şekeri: {avg:.1f} mg/dL → {dose} ml"
-                )
-
-            conn.commit()
-            cur.close()
-            conn.close()
-
-            messagebox.showinfo("Başarılı","Ölçüm kaydedildi.")
-            self.controller.show_frame("PatientFrame")
-
-        except ValueError:
-            messagebox.showerror(
-                "Geçersiz Tarih/Saat",
-                "Lütfen DD.MM.YYYY HH:MM:SS formatında girin."
-            )
-        except Exception as e:
-            messagebox.showerror("Hata", e)
+            messagebox.showerror("Hata", str(e))
 
 # -----------------------------------------------------
 # Hasta — Egzersiz Uyum Takibi
