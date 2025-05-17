@@ -434,7 +434,7 @@ class NewPatientFrame(tk.Frame):
 
         # Label isimleri (şifre çıkarıldı!)
         labels = ["TC", "Resim", "E-posta",
-                  "Doğum (YYYY-MM-DD)", "Cinsiyet", "İsim", "Şehir"]
+                  "Doğum (DD.MM.YYYY)", "Cinsiyet", "İsim", "Şehir"]
         self.entries = {}
 
         for i, lbl in enumerate(labels):
@@ -443,15 +443,16 @@ class NewPatientFrame(tk.Frame):
             )
 
             if lbl == "Resim":
-                # Resim seçme alanı
                 resim_frame = tk.Frame(frm, bg="white")
                 resim_frame.grid(row=i, column=1, pady=2, padx=5, sticky="w")
-
                 resim_entry = tk.Entry(resim_frame, width=25)
                 resim_entry.pack(side="left")
                 self.entries[lbl] = resim_entry
-
-                sec_button = tk.Button(resim_frame, text="Seç", command=lambda: self.select_file(resim_entry))
+                sec_button = tk.Button(
+                    resim_frame,
+                    text="Seç",
+                    command=lambda e=resim_entry: self.select_file(e)
+                )
                 sec_button.pack(side="left", padx=5)
             else:
                 e = tk.Entry(frm, width=30)
@@ -467,7 +468,6 @@ class NewPatientFrame(tk.Frame):
                   command=controller.go_back).pack(side="right", padx=5)
 
     def select_file(self, entry_widget):
-        # Dosya seçici aç
         file_path = filedialog.askopenfilename(
             title="Resim Seç",
             filetypes=[("Resim Dosyaları", "*.jpg *.jpeg *.png *.bmp *.gif"), ("Tüm Dosyalar", "*.*")]
@@ -483,7 +483,7 @@ class NewPatientFrame(tk.Frame):
             messagebox.showwarning("Eksik Bilgi", "Lütfen tüm alanları doldurun.")
             return
 
-        tc, img, em, dob, gn, ad, se = vals
+        tc, img, em, dob_input, gn, ad, se = vals
 
         # TC doğrulama
         if not (tc.isdigit() and len(tc) == 11):
@@ -491,33 +491,41 @@ class NewPatientFrame(tk.Frame):
                                  "TC kimlik numarası 11 haneli olmalı ve sadece rakam içermelidir.")
             return
 
-        # ✅ Otomatik 6 haneli şifre oluştur
+        # Otomatik 6 haneli şifre oluştur
         random_password = "{:06d}".format(random.randint(0, 999999))
-
-        # ✅ Şifre hash'le
         salt = bcrypt.gensalt(rounds=HASH_ROUNDS)
         pw_hash = bcrypt.hashpw(random_password.encode(), salt)
 
         try:
+            # Doğum tarihini parse edip MySQL formatına çevir
+            dt_dob = datetime.strptime(dob_input, "%d.%m.%Y")
+            dob_mysql = dt_dob.strftime("%Y-%m-%d")
+
             conn = mysql.connector.connect(**DB_CONFIG)
             cur = conn.cursor()
             cur.execute(
                 "INSERT INTO hasta "
                 "(kullanici_adi, sifre, resim, email, dogum_tarihi, cinsiyet, isim, sehir, doktor_tc) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (tc, pw_hash, img, em, dob, gn, ad, se, self.controller.current_user_tc)
+                (tc, pw_hash, img, em, dob_mysql, gn, ad, se, self.controller.current_user_tc)
             )
             conn.commit()
             cur.close()
             conn.close()
 
-            # ✅ E-posta gönder
+            # E-posta gönder
             send_email(em, tc, random_password, self.controller.current_user_name)
             messagebox.showinfo("Başarılı", "Hasta kaydedildi.\nŞifre e-posta ile gönderildi.")
             self.controller.show_frame("DoctorFrame")
 
+        except ValueError:
+            messagebox.showerror(
+                "Geçersiz Doğum Tarihi",
+                "Lütfen Doğum için DD.MM.YYYY formatını kullanın."
+            )
         except mysql.connector.Error as e:
             messagebox.showerror("Hata", str(e))
+
 
 
 
@@ -1122,7 +1130,8 @@ class OlcumEntryFrame(tk.Frame):
         # Girdi alanları
         self.tarih = tk.Entry(form, font=("Arial", 12), width=25)
         self.tarih.grid(row=0, column=1, padx=10, pady=8)
-        self.tarih.insert(0, datetime.now().strftime("%Y.%m.%d %H:%M:%S"))
+        self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))  # ← burası değiştirildi
+
 
         self.seviye = tk.Entry(form, font=("Arial", 12), width=25)
         self.seviye.grid(row=1, column=1, padx=10, pady=8)
