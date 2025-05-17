@@ -45,12 +45,17 @@ def get_recommendation(seviye, semptoms):
     semptoms: list[str]
     döndürür: (diyet_türü veya None, egzersiz_türü veya None)
     """
+    s_set = set(semptoms)
     for cond, rule_syms, diet, ex in RECOMMENDATION_RULES:
-        # artık rule_syms listesindeki tüm semptomlar semptoms içinde olmalı
-        if cond(seviye) and all(s in semptoms for s in rule_syms):
+        r_set = set(rule_syms)
+        # Öneri yapabilmek için:
+        # 1) seviye koşulu sağlanmalı
+        # 2) semptoms listesiyle rule_syms kümeleri tam olarak eşleşmeli
+        if cond(seviye) and s_set == r_set:
             return diet, ex
     # hiçbir kural tam eşleşme sağlamadıysa
     return None, None
+
 
 # — EKLENECEK: İnsülin dozu hesaplama fonksiyonu
 def get_insulin_dose_for_day(conn, hasta_tc: str, timestamp: str) -> tuple[float,int]:
@@ -736,17 +741,16 @@ class EgzersizOnerFrame(tk.Frame):
         self.tarih.grid(row=1, column=1, pady=4)
         self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 
-        # Bilgilendirme yazısı
-        self.info_label = tk.Label(frm, text="Sistem tarafından bu egzersiz öneriliyor.",
-                                   font=("Arial", 10), bg="white")
+        # Bilgilendirme yazısı (başlangıçta boş)
+        self.info_label = tk.Label(frm, text="", font=("Arial", 10), bg="white")
         self.info_label.grid(row=2, column=0, columnspan=2, pady=(10, 0))
 
         # Egzersiz türü
+        tk.Label(frm, text="Egzersiz Türü:", bg="white")\
+            .grid(row=3, column=0, sticky="e", padx=5, pady=4)
         self.egz_var = tk.StringVar()
         self.egz_menu = tk.OptionMenu(frm, self.egz_var, "")
         self.egz_menu.grid(row=3, column=1, pady=4, sticky="w")
-        tk.Label(frm, text="Egzersiz Türü:", bg="white")\
-            .grid(row=3, column=0, sticky="e", padx=5, pady=4)
 
         btnf = tk.Frame(self, bg="white")
         btnf.pack(pady=15)
@@ -768,10 +772,8 @@ class EgzersizOnerFrame(tk.Frame):
 
             # Son glukoz seviyesi
             cur.execute(
-                "SELECT seviye_mgdl "
-                "FROM doktor_kan_olcum "
-                "WHERE hasta_tc=%s "
-                "ORDER BY tarih_saat DESC LIMIT 1",
+                "SELECT seviye_mgdl FROM doktor_kan_olcum "
+                "WHERE hasta_tc=%s ORDER BY tarih_saat DESC LIMIT 1",
                 (tc,)
             )
             row = cur.fetchone()
@@ -797,6 +799,12 @@ class EgzersizOnerFrame(tk.Frame):
             if seviye is not None:
                 _, exercise = get_recommendation(seviye, semptoms)
 
+            # Bilgilendirme yazısını güncelle
+            if exercise:
+                self.info_label.config(text=f"Sistem tarafından {exercise} öneriliyor: ")
+            else:
+                self.info_label.config(text="")
+
             # Menüye ekle
             menu = self.egz_menu["menu"]
             menu.delete(0, "end")
@@ -821,9 +829,8 @@ class EgzersizOnerFrame(tk.Frame):
         egz_tur = self.egz_var.get()
 
         try:
-            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S").replace(
-                tzinfo=ZoneInfo("Europe/Istanbul")
-            )
+            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S")\
+                       .replace(tzinfo=ZoneInfo("Europe/Istanbul"))
             tr = dt.strftime("%Y-%m-%d %H:%M:%S")
 
             conn = mysql.connector.connect(**DB_CONFIG)
@@ -876,8 +883,8 @@ class DiyetPlanFrame(tk.Frame):
         self.tarih.grid(row=1, column=1, pady=4)
         self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 
-        self.info_label = tk.Label(frm, text="Sistem tarafından bu diyet öneriliyor.",
-                                   font=("Arial", 10), bg="white")
+        # Bilgilendirme yazısı başlangıçta boş
+        self.info_label = tk.Label(frm, text="", font=("Arial", 10), bg="white")
         self.info_label.grid(row=2, column=0, columnspan=2, pady=(10, 0))
 
         tk.Label(frm, text="Diyet Türü:", bg="white")\
@@ -904,33 +911,49 @@ class DiyetPlanFrame(tk.Frame):
             conn = mysql.connector.connect(**DB_CONFIG)
             cur = conn.cursor()
 
-            cur.execute("SELECT seviye_mgdl FROM doktor_kan_olcum WHERE hasta_tc=%s ORDER BY tarih_saat DESC LIMIT 1", (tc,))
-            seviye_row = cur.fetchone()
-            seviye = seviye_row[0] if seviye_row else None
+            # Son glukoz seviyesi
+            cur.execute(
+                "SELECT seviye_mgdl FROM doktor_kan_olcum "
+                "WHERE hasta_tc=%s ORDER BY tarih_saat DESC LIMIT 1",
+                (tc,)
+            )
+            row = cur.fetchone()
+            seviye = row[0] if row else None
 
+            # Tüm semptomları çek
             cur.execute("""
-                SELECT st.tur FROM tbl_semptom s
+                SELECT st.tur
+                FROM tbl_semptom s
                 JOIN semptom_turleri st ON s.semptom_tur_id = st.id
-                WHERE s.hasta_tc = %s ORDER BY s.tarih_saat DESC LIMIT 1
+                WHERE s.hasta_tc = %s
             """, (tc,))
-            semptom_row = cur.fetchone()
-            semptom = semptom_row[0] if semptom_row else None
+            semptom_rows = cur.fetchall()
+            semptoms = [t for (t,) in semptom_rows]
 
+            # Diyet türlerini çek
             cur.execute("SELECT id, tur FROM diyet_turleri")
             self.diyet_turleri = cur.fetchall()
-
             all_diets = [tur for _, tur in self.diyet_turleri]
 
+            # Öneri hesapla
             diet = None
-            if seviye is not None and semptom is not None:
-                diet, _ = get_recommendation(seviye, [semptom])
+            if seviye is not None:
+                diet, _ = get_recommendation(seviye, semptoms)
 
+            # Bilgilendirme yazısını güncelle
+            if diet:
+                self.info_label.config(text=f"Sistem tarafından {diet} öneriliyor.")
+            else:
+                self.info_label.config(text="")
+
+            # Menüye ekle
             menu = self.diyet_menu["menu"]
             menu.delete(0, "end")
             for val in all_diets:
                 menu.add_command(label=val, command=lambda v=val: self.diyet_var.set(v))
 
-            if diet and diet in all_diets:
+            # Varsayılan seçim
+            if diet in all_diets:
                 self.diyet_var.set(diet)
             elif all_diets:
                 self.diyet_var.set(all_diets[0])
@@ -947,7 +970,8 @@ class DiyetPlanFrame(tk.Frame):
         diyet = self.diyet_var.get()
 
         try:
-            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S").replace(tzinfo=ZoneInfo("Europe/Istanbul"))
+            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S")\
+                       .replace(tzinfo=ZoneInfo("Europe/Istanbul"))
             tr = dt.strftime("%Y-%m-%d %H:%M:%S")
 
             conn = mysql.connector.connect(**DB_CONFIG)
@@ -956,7 +980,8 @@ class DiyetPlanFrame(tk.Frame):
             diyet_id = next(i for i, tur in self.diyet_turleri if tur == diyet)
 
             cur.execute(
-                "INSERT INTO tbl_diyet_plani (hasta_tc, tarih_saat, diyet_tur_id) VALUES (%s, %s, %s)",
+                "INSERT INTO tbl_diyet_plani (hasta_tc, tarih_saat, diyet_tur_id) "
+                "VALUES (%s, %s, %s)",
                 (tc, tr, diyet_id)
             )
 
