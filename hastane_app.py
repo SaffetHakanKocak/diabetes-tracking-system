@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk,messagebox
 from tkinter import filedialog,messagebox
 from tkinter import simpledialog
 import mysql.connector
@@ -1364,150 +1365,134 @@ class EgzersizTakipFrame(tk.Frame):
         bg = tk.Label(self, image=controller.bg_image)
         bg.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-        # ----------------------
-        # Başlık: Egzersiz Uyum Takibi
-        # ----------------------
+        # Başlık
         tk.Label(self, text="Egzersiz Uyum Takibi",
-                 font=("Arial", 18, "bold"), bg="white").pack(pady=(15, 5))
+                 font=("Arial", 18, "bold"), bg="white")\
+          .pack(pady=(15, 5))
 
-        # ----------------------
-        # Son önerilen egzersiz ismi
-        # ----------------------
-        self.son_egzersiz_label = tk.Label(self, text="", 
-                                           font=("Arial", 12), bg="white")
-        self.son_egzersiz_label.pack(pady=(0, 10))
-
-        # ----------------------
-        # Yapıldı Formu
-        # ----------------------
-        form_frame = tk.Frame(self, bg="white")
-        form_frame.pack(pady=5)
-
-        tk.Label(form_frame, text="Tarih/Saat (YYYY-MM-DD HH:MM:SS):", bg="white")\
+        # Form
+        form = tk.Frame(self, bg="white")
+        form.pack(pady=5)
+        tk.Label(form, text="Tarih/Saat (YYYY-MM-DD HH:MM:SS):", bg="white")\
             .grid(row=0, column=0, sticky="e", padx=5)
-        self.tarih = tk.Entry(form_frame, width=25)
+        self.tarih = tk.Entry(form, width=25)
         self.tarih.grid(row=0, column=1, pady=2)
-
         self.yap_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(form_frame, text="Yapıldı", variable=self.yap_var,
-                       bg="white").grid(row=1, column=1, sticky="w")
+        tk.Checkbutton(form, text="Yapıldı", variable=self.yap_var, bg="white")\
+            .grid(row=1, column=1, sticky="w")
 
-        # Butonlar
-        button_frame = tk.Frame(self, bg="white")
-        button_frame.pack(pady=10)
-        tk.Button(button_frame, text="Kaydet", command=self.save).pack(side="left", padx=5)
-        tk.Button(button_frame, text="Geri", command=controller.go_back).pack(side="right", padx=5)
+        # Kayıt / Geri butonları
+        btnf = tk.Frame(self, bg="white")
+        btnf.pack(pady=10)
+        tk.Button(btnf, text="Kaydet", command=self.save).pack(side="left", padx=5)
+        tk.Button(btnf, text="Geri",   command=controller.go_back).pack(side="right", padx=5)
 
-        # ----------------------
-        # Tüm önerileri gösterecek frame
-        # ----------------------
-        self.oneriler_frame = tk.Frame(self, bg="white")
-        self.oneriler_frame.pack(pady=(15, 10), fill="both", expand=True)
+        # ► Doktor Önerisi (yüzde özetinin hemen üstünde olacak şekilde)
+        self.doktor_onerisi_label = tk.Label(self, text="", font=("Arial", 12), bg="white")
+        self.doktor_onerisi_label.pack(pady=(10, 0))
+
+        # ► Yüzdesel özet
+        self.summary_label = tk.Label(self, text="", font=("Arial", 12), bg="white")
+        self.summary_label.pack(pady=(2, 10))
+
+        # ► Uyum geçmişi tablosu
+        cols = ("tarih", "durum")
+        self.tree = ttk.Treeview(self, columns=cols, show="headings", height=6)
+        self.tree.heading("tarih", text="Tarih/Saat", anchor="center")
+        self.tree.heading("durum", text="Egzersiz Durumu", anchor="center")
+        self.tree.column("tarih", anchor="center", width=200)
+        self.tree.column("durum", anchor="center", width=150)
+        self.tree.pack(fill="x", padx=10, pady=(5,10))
 
     def tkraise(self, above=None):
-        # Frame açılırken hem son öneriyi hem geçmiş önerileri göster
-        self.load_last_exercise()
-        self.list_all_exercise_recommendations()
-        self.tarih.insert(0, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.tarih.delete(0, tk.END)
+        self.tarih.insert(0, now)
+        self.load_last_suggestion()
+        self.populate_compliance()
         super().tkraise(above)
 
-    def load_last_exercise(self):
-        try:
-            tc = self.controller.current_user_tc
-            conn = mysql.connector.connect(**DB_CONFIG)
-            cur = conn.cursor()
+    def load_last_suggestion(self):
+        tc = self.controller.current_user_tc
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT et.tur
+            FROM tbl_egzersiz_oneri eo
+            JOIN egzersiz_turleri et ON eo.egzersiz_tur_id = et.id
+            WHERE eo.hasta_tc = %s
+            ORDER BY eo.tarih_saat DESC
+            LIMIT 1
+        """, (tc,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
 
-            # En son önerilen egzersizi çek
-            cur.execute("""
-                SELECT eo.tarih_saat, et.tur
-                FROM tbl_egzersiz_oneri eo
-                JOIN egzersiz_turleri et ON eo.egzersiz_tur_id = et.id
-                WHERE eo.hasta_tc = %s
-                ORDER BY eo.tarih_saat DESC
-                LIMIT 1
-            """, (tc,))
-            result = cur.fetchone()
-
-            if result:
-                tarih_saat, egzersiz_ismi = result
-                self.son_egzersiz_label.config(text=egzersiz_ismi)
-                self.tarih.delete(0, tk.END)
-            else:
-                self.son_egzersiz_label.config(text="Henüz egzersiz önerilmedi.")
-                self.tarih.delete(0, tk.END)
-
-            cur.close()
-            conn.close()
-
-        except Exception as e:
-            self.son_egzersiz_label.config(text="Öneri bilgisi alınamadı.")
-            print(f"Hata (last exercise): {e}")
-
-    def list_all_exercise_recommendations(self):
-        # Önce eski önerileri temizle
-        for widget in self.oneriler_frame.winfo_children():
-            widget.destroy()
-
-        try:
-            tc = self.controller.current_user_tc
-            conn = mysql.connector.connect(**DB_CONFIG)
-            cur = conn.cursor()
-
-            # Tüm önerileri çek
-            cur.execute("""
-                SELECT eo.tarih_saat, et.tur
-                FROM tbl_egzersiz_oneri eo
-                JOIN egzersiz_turleri et ON eo.egzersiz_tur_id = et.id
-                WHERE eo.hasta_tc = %s
-                ORDER BY eo.tarih_saat DESC
-            """, (tc,))
-            results = cur.fetchall()
-
-            if results:
-                for tarih_saat, egzersiz_ismi in results:
-                    text = f"Doktorunuz tarafından {tarih_saat} zamanında {egzersiz_ismi} önerildi."
-                    tk.Label(self.oneriler_frame, text=text,
-                             font=("Arial", 11), bg="white",
-                             anchor="w", justify="left", wraplength=750)\
-                        .pack(anchor="w", pady=2)
-            else:
-                tk.Label(self.oneriler_frame, text="Doktorunuz tarafından henüz egzersiz önerilmedi.",
-                         font=("Arial", 12), bg="white").pack(pady=5)
-
-            cur.close()
-            conn.close()
-
-        except Exception as e:
-            tk.Label(self.oneriler_frame, text="Öneriler alınamadı.",
-                     font=("Arial", 12), bg="white").pack(pady=5)
-            print(f"Hata (list all exercises): {e}")
+        if row:
+            self.doktor_onerisi_label.config(text=f"Doktor Önerisi: {row[0]}")
+        else:
+            self.doktor_onerisi_label.config(text="Doktor Önerisi: Henüz yok")
 
     def save(self):
         tc = self.controller.current_user_tc
-        tr = self.tarih.get()
-        yap = self.yap_var.get()
-
+        tr_text = self.tarih.get().strip()
         try:
-            conn = mysql.connector.connect(**DB_CONFIG)
-            cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO tbl_egzersiz_takip (hasta_tc, tarih_saat, yapildi) VALUES (%s, %s, %s)",
-                (tc, tr, yap)
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+            tr = datetime.strptime(tr_text, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            messagebox.showerror("Hata",
+                "Tarih/Saat formatı hatalı.\nYYYY-MM-DD HH:MM:SS olmalı.")
+            return
 
-            messagebox.showinfo("Başarılı", "Egzersiz uyum bilgisi kaydedildi.")
-            self.controller.show_frame("PatientFrame")
+        durum = "Egzersiz yapıldı" if self.yap_var.get() else "Egzersiz yapılmadı"
 
-        except Exception as e:
-            messagebox.showerror("Hata", e)
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO tbl_egzersiz_takip
+              (hasta_tc, tarih_saat, yapilan_egzersiz)
+            VALUES (%s,%s,%s)
+            ON DUPLICATE KEY UPDATE
+              yapilan_egzersiz = VALUES(yapilan_egzersiz)
+        """, (tc, tr, durum))
+        conn.commit()
+        cur.close(); conn.close()
 
+        self.populate_compliance()
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.tarih.delete(0, tk.END)
+        self.tarih.insert(0, now)
 
-# -----------------------------------------------------
-# Hasta — Diyet Uyum Takibi
-# -----------------------------------------------------
+    def populate_compliance(self):
+        tc = self.controller.current_user_tc
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM tbl_egzersiz_takip WHERE hasta_tc=%s", (tc,))
+        total = cur.fetchone()[0] or 0
+        cur.execute("""
+            SELECT COUNT(*) FROM tbl_egzersiz_takip
+            WHERE hasta_tc=%s AND yapilan_egzersiz='Egzersiz yapıldı'
+        """, (tc,))
+        done = cur.fetchone()[0] or 0
+
+        pct = (done/total*100) if total>0 else 0
+        self.summary_label.config(
+            text=f"Egzersiz Uyum: %{pct:.1f} yapıldı, %{100-pct:.1f} yapılmadı"
+        )
+
+        # Tabloyu temizle ve yeniden doldur
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        cur.execute("""
+            SELECT tarih_saat, yapilan_egzersiz
+            FROM tbl_egzersiz_takip
+            WHERE hasta_tc=%s
+            ORDER BY tarih_saat DESC
+        """, (tc,))
+        for ts, durum in cur.fetchall():
+            self.tree.insert("", "end",
+                values=(ts.strftime("%Y-%m-%d %H:%M:%S"), durum))
+        cur.close(); conn.close()
+
 class DiyetTakipFrame(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
@@ -1517,146 +1502,132 @@ class DiyetTakipFrame(tk.Frame):
         bg = tk.Label(self, image=controller.bg_image)
         bg.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-        # ----------------------
         # Başlık
-        # ----------------------
         tk.Label(self, text="Diyet Uyum Takibi",
-                 font=("Arial", 18, "bold"), bg="white").pack(pady=(15, 5))
+                 font=("Arial", 18, "bold"), bg="white")\
+          .pack(pady=(15, 5))
 
-        # ----------------------
-        # Son diyet planı etiketi
-        # ----------------------
-        self.son_diyet_label = tk.Label(self, text="", 
-                                        font=("Arial", 12), bg="white")
-        self.son_diyet_label.pack(pady=(0, 10))
+        # ► Doktor Önerisi
+        self.doktor_onerisi_label = tk.Label(self, text="", font=("Arial", 12), bg="white")
+        self.doktor_onerisi_label.pack(pady=(0, 10))
 
-        # ----------------------
-        # Uygulama Formu
-        # ----------------------
-        form_frame = tk.Frame(self, bg="white")
-        form_frame.pack(pady=5)
-
-        tk.Label(form_frame, text="Tarih/Saat (YYYY-MM-DD HH:MM:SS):", bg="white")\
-            .grid(row=0, column=0, sticky="e", padx=5)
-        self.tarih = tk.Entry(form_frame, width=25)
+        # Form çerçevesi
+        form = tk.Frame(self, bg="white")
+        form.pack(pady=5)
+        tk.Label(form, text="Tarih/Saat (YYYY-MM-DD HH:MM:SS):", bg="white")\
+          .grid(row=0, column=0, sticky="e", padx=5)
+        self.tarih = tk.Entry(form, width=25)
         self.tarih.grid(row=0, column=1, pady=2)
-
         self.uyg_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(form_frame, text="Uygulandı", variable=self.uyg_var,
-                       bg="white").grid(row=1, column=1, sticky="w")
+        tk.Checkbutton(form, text="Uygulandı", variable=self.uyg_var, bg="white")\
+          .grid(row=1, column=1, sticky="w")
 
-        # Butonlar
-        button_frame = tk.Frame(self, bg="white")
-        button_frame.pack(pady=10)
-        tk.Button(button_frame, text="Kaydet", command=self.save).pack(side="left", padx=5)
-        tk.Button(button_frame, text="Geri", command=controller.go_back).pack(side="right", padx=5)
+        # Kayıt / Geri butonları
+        btnf = tk.Frame(self, bg="white")
+        btnf.pack(pady=10)
+        tk.Button(btnf, text="Kaydet",   command=self.save).pack(side="left", padx=5)
+        tk.Button(btnf, text="Geri",      command=controller.go_back).pack(side="right", padx=5)
 
-        # ----------------------
-        # Geçmiş diyet planlarını gösterecek frame
-        # ----------------------
-        self.oneriler_frame = tk.Frame(self, bg="white")
-        self.oneriler_frame.pack(pady=(15, 10), fill="both", expand=True)
+        # ► Yüzdesel özet
+        self.summary_label = tk.Label(self, font=("Arial", 12), bg="white")
+        self.summary_label.pack(pady=(10,0))
+
+        # ► Uyum geçmişi tablosu
+        cols = ("tarih", "durum")
+        self.tree = ttk.Treeview(self, columns=cols, show="headings", height=6)
+        self.tree.heading("tarih", text="Tarih/Saat", anchor="center")
+        self.tree.heading("durum", text="Diyet Durumu", anchor="center")
+        self.tree.column("tarih", anchor="center", width=200)
+        self.tree.column("durum", anchor="center", width=150)
+        self.tree.pack(fill="x", padx=10, pady=(5,10))
 
     def tkraise(self, above=None):
-        # Frame her açıldığında en son plan + geçmiş önerileri göster
-        self.load_last_diyet()
-        self.list_all_diyet_plans()
-        self.tarih.insert(0, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.tarih.delete(0, tk.END)
+        self.tarih.insert(0, now)
+        self.load_last_suggestion()
+        self.populate_compliance()
         super().tkraise(above)
 
-    def load_last_diyet(self):
-        try:
-            tc = self.controller.current_user_tc
-            conn = mysql.connector.connect(**DB_CONFIG)
-            cur = conn.cursor()
+    def load_last_suggestion(self):
+        tc = self.controller.current_user_tc
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT dt.tur
+            FROM tbl_diyet_plani dp
+            JOIN diyet_turleri dt ON dp.diyet_tur_id = dt.id
+            WHERE dp.hasta_tc = %s
+            ORDER BY dp.tarih_saat DESC
+            LIMIT 1
+        """, (tc,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
 
-            # En son diyet planını çek
-            cur.execute("""
-                SELECT dp.tarih_saat, dt.tur
-                FROM tbl_diyet_plani dp
-                JOIN diyet_turleri dt ON dp.diyet_tur_id = dt.id
-                WHERE dp.hasta_tc = %s
-                ORDER BY dp.tarih_saat DESC
-                LIMIT 1
-            """, (tc,))
-            result = cur.fetchone()
-
-            if result:
-                tarih_saat, diyet_ismi = result
-                self.son_diyet_label.config(text=diyet_ismi)
-                self.tarih.delete(0, tk.END)
-            else:
-                self.son_diyet_label.config(text="Henüz diyet önerilmedi.")
-                self.tarih.delete(0, tk.END)
-
-            cur.close()
-            conn.close()
-
-        except Exception as e:
-            self.son_diyet_label.config(text="Öneri bilgisi alınamadı.")
-            print(f"Hata (last diyet): {e}")
-
-    def list_all_diyet_plans(self):
-        # Önce eski önerileri temizle
-        for widget in self.oneriler_frame.winfo_children():
-            widget.destroy()
-
-        try:
-            tc = self.controller.current_user_tc
-            conn = mysql.connector.connect(**DB_CONFIG)
-            cur = conn.cursor()
-
-            # Tüm geçmiş diyet planlarını çek
-            cur.execute("""
-                SELECT dp.tarih_saat, dt.tur
-                FROM tbl_diyet_plani dp
-                JOIN diyet_turleri dt ON dp.diyet_tur_id = dt.id
-                WHERE dp.hasta_tc = %s
-                ORDER BY dp.tarih_saat DESC
-            """, (tc,))
-            results = cur.fetchall()
-
-            if results:
-                for tarih_saat, diyet_ismi in results:
-                    text = f"Doktorunuz tarafından {tarih_saat} zamanında {diyet_ismi} önerildi."
-                    tk.Label(self.oneriler_frame, text=text,
-                             font=("Arial", 11), bg="white",
-                             anchor="w", justify="left", wraplength=750)\
-                        .pack(anchor="w", pady=2)
-            else:
-                tk.Label(self.oneriler_frame, text="Doktorunuz tarafından henüz diyet önerilmedi.",
-                         font=("Arial", 12), bg="white").pack(pady=5)
-
-            cur.close()
-            conn.close()
-
-        except Exception as e:
-            tk.Label(self.oneriler_frame, text="Öneriler alınamadı.",
-                     font=("Arial", 12), bg="white").pack(pady=5)
-            print(f"Hata (list all diyet): {e}")
+        if row:
+            self.doktor_onerisi_label.config(text=f"Doktor Önerisi: {row[0]}")
+        else:
+            self.doktor_onerisi_label.config(text="Doktor Önerisi: Henüz yok")
 
     def save(self):
         tc = self.controller.current_user_tc
-        tr = self.tarih.get()
-        uyg = self.uyg_var.get()
-
+        tr_text = self.tarih.get().strip()
         try:
-            conn = mysql.connector.connect(**DB_CONFIG)
-            cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO tbl_diyet_takip (hasta_tc, tarih_saat, uygulandi) VALUES (%s, %s, %s)",
-                (tc, tr, uyg)
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+            tr = datetime.strptime(tr_text, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            messagebox.showerror("Hata",
+                "Tarih/Saat formatı hatalı.\nYYYY-MM-DD HH:MM:SS olmalı.")
+            return
 
-            messagebox.showinfo("Başarılı", "Diyet uyum bilgisi kaydedildi.")
-            self.controller.show_frame("PatientFrame")
+        durum = "Diyet uygulandı" if self.uyg_var.get() else "Diyet uygulanmadı"
 
-        except Exception as e:
-            messagebox.showerror("Hata", e)
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO tbl_diyet_takip
+              (hasta_tc, tarih_saat, uygulanan_diyet)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+              uygulanan_diyet = VALUES(uygulanan_diyet)
+        """, (tc, tr, durum))
+        conn.commit()
+        cur.close(); conn.close()
 
+        self.populate_compliance()
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.tarih.delete(0, tk.END)
+        self.tarih.insert(0, now)
+
+    def populate_compliance(self):
+        tc = self.controller.current_user_tc
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM tbl_diyet_takip WHERE hasta_tc=%s", (tc,))
+        total = cur.fetchone()[0] or 0
+        cur.execute("""
+            SELECT COUNT(*) FROM tbl_diyet_takip
+            WHERE hasta_tc=%s AND uygulanan_diyet='Diyet uygulandı'
+        """, (tc,))
+        done = cur.fetchone()[0] or 0
+
+        pct = (done/total*100) if total>0 else 0
+        self.summary_label.config(
+            text=f"Diyet Uyum: %{pct:.1f} yapıldı, %{100-pct:.1f} yapılmadı"
+        )
+
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        cur.execute("""
+            SELECT tarih_saat, uygulanan_diyet
+            FROM tbl_diyet_takip
+            WHERE hasta_tc=%s
+            ORDER BY tarih_saat DESC
+        """, (tc,))
+        for ts, durum in cur.fetchall():
+            self.tree.insert("", "end",
+                values=(ts.strftime("%Y-%m-%d %H:%M:%S"), durum))
+        cur.close(); conn.close()
 
 # -----------------------------------------------------
 # Hasta — Belirti Görüntüle (basit liste)
@@ -1778,35 +1749,149 @@ class DoctorFilterFrame(tk.Frame):
    
 class DoctorGraphFrame(tk.Frame):
     def __init__(self, parent, controller):
-        super().__init__(parent); self.controller = controller
-        tk.Label(self, text="Doktor — Grafikler", font=("Arial",16,"bold")).pack(pady=10)
-        btnf = tk.Frame(self); btnf.pack()
-        tk.Button(btnf, text="Kan Şekeri Zaman Serisi", command=self.plot_glucose).pack(side="left", padx=5)
-        tk.Button(btnf, text="Egzersiz/Diyet Etkisi", command=self.plot_ex_diet).pack(side="left", padx=5)
-        tk.Button(self, text="Geri", command=controller.go_back).pack(side="bottom", pady=5)
+        super().__init__(parent)
+        self.controller = controller
+
+        # Başlık
+        tk.Label(self, text="Doktor — Grafikler", font=("Arial", 16, "bold"))\
+          .pack(pady=10)
+
+        # Butonlar
+        btnf = tk.Frame(self)
+        btnf.pack(pady=5)
+        tk.Button(btnf,
+                  text="Kan Şekeri Zaman Serisi",
+                  command=self.plot_glucose)\
+          .pack(side="left", padx=5)
+        tk.Button(btnf,
+                  text="Uygunluk Oranları",
+                  command=self.plot_ex_diet)\
+          .pack(side="left", padx=5)
+        tk.Button(self,
+                  text="Geri",
+                  command=controller.go_back)\
+          .pack(side="bottom", pady=5)
+
+        # Canvas placeholder
         self.canvas = None
 
+    def _clear_canvas(self):
+        """Önceki grafiği temizle ve matplotlib figürlerini kapat."""
+        if self.canvas:
+            self.canvas.get_tk_widget().pack_forget()
+            self.canvas.get_tk_widget().destroy()
+            self.canvas = None
+        plt.close('all')
+
     def _draw(self, fig):
-        if self.canvas: self.canvas.get_tk_widget().destroy()
+        """Yeni matplotlib figürünü ekrana çiz."""
+        self._clear_canvas()
         self.canvas = FigureCanvasTkAgg(fig, master=self)
-        self.canvas.draw(); self.canvas.get_tk_widget().pack()
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill="both", expand=True)
 
     def plot_glucose(self):
+        """Hastanın kan şekeri değerlerini zaman serisi grafiği olarak göster."""
         tc = self.controller.frames["DoctorFrame"].patient_var.get()
-        conn = mysql.connector.connect(**DB_CONFIG); cur=conn.cursor()
-        cur.execute("SELECT tarih_saat,seviye_mgdl FROM tbl_olcum WHERE hasta_tc=%s ORDER BY tarih_saat", (tc,))
-        data = cur.fetchall(); cur.close(); conn.close()
-        dates = [d[0] for d in data]; vals = [d[1] for d in data]
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT tarih_saat, seviye_mgdl "
+            "FROM tbl_olcum "
+            "WHERE hasta_tc=%s "
+            "ORDER BY tarih_saat",
+            (tc,)
+        )
+        data = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        dates = [row[0] for row in data]
+        vals  = [row[1] for row in data]
+
         fig, ax = plt.subplots()
-        ax.plot(dates, vals)
+        ax.plot(dates, vals, marker='o')
         ax.set_title("Zaman Bazlı Kan Şekeri")
-        ax.set_xlabel("Tarih/Saat"), ax.set_ylabel("mg/dL")
+        ax.set_xlabel("Tarih/Saat")
+        ax.set_ylabel("mg/dL")
+        fig.autofmt_xdate()
+
         self._draw(fig)
 
     def plot_ex_diet(self):
-        # Burada egzersiz ve diyet tablolarını join edip grafiğe dökebilirsiniz.
-        # Örneğin: tarih bakımından birleştirip yan yana iki çizgi plot’u vs.
-        pass
+        """
+        Hastanın egzersiz ve diyet uyum oranlarını,
+        takip kayıtları bazında dinamik olarak gösterir.
+        """
+        tc = self.controller.frames["DoctorFrame"].patient_var.get()
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+
+        # Egzersiz takibi toplam ve yapılan
+        cur.execute(
+            "SELECT COUNT(*) FROM tbl_egzersiz_takip WHERE hasta_tc=%s",
+            (tc,)
+        )
+        total_ex = cur.fetchone()[0] or 0
+        cur.execute(
+            "SELECT COUNT(*) FROM tbl_egzersiz_takip "
+            "WHERE hasta_tc=%s AND yapilan_egzersiz NOT LIKE 'Egzersiz yapılmadı'",
+            (tc,)
+        )
+        done_ex = cur.fetchone()[0] or 0
+
+        # Diyet takibi toplam ve yapılan
+        cur.execute(
+            "SELECT COUNT(*) FROM tbl_diyet_takip WHERE hasta_tc=%s",
+            (tc,)
+        )
+        total_di = cur.fetchone()[0] or 0
+        cur.execute(
+            "SELECT COUNT(*) FROM tbl_diyet_takip "
+            "WHERE hasta_tc=%s AND uygulanan_diyet NOT LIKE 'Diyet uygulanmadı'",
+            (tc,)
+        )
+        done_di = cur.fetchone()[0] or 0
+
+        cur.close()
+        conn.close()
+
+        # Pasta verileri
+        ex_data = [done_ex, max(total_ex - done_ex, 0)]
+        di_data = [done_di,   max(total_di   - done_di,   0)]
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
+
+        # Egzersiz uyumu
+        if total_ex > 0:
+            ax1.pie(
+                ex_data,
+                labels=["Yapıldı", "Yapılmadı"],
+                autopct="%1.1f%%",
+                startangle=90,
+                pctdistance=0.75,
+                labeldistance=1.1
+            )
+        else:
+            ax1.text(0.5, 0.5, "Kayıt yok", ha="center", va="center")
+        ax1.set_title("Egzersiz Uygunluğu")
+
+        # Diyet uyumu
+        if total_di > 0:
+            ax2.pie(
+                di_data,
+                labels=["Yapıldı", "Yapılmadı"],
+                autopct="%1.1f%%",
+                startangle=90,
+                pctdistance=0.75,
+                labeldistance=1.1
+            )
+        else:
+            ax2.text(0.5, 0.5, "Kayıt yok", ha="center", va="center")
+        ax2.set_title("Diyet Uygunluğu")
+
+        plt.tight_layout()
+        self._draw(fig)
 
 class PatientGraphFrame(tk.Frame):
     def __init__(self, parent, controller):

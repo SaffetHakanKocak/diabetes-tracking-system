@@ -148,11 +148,10 @@ CREATE TABLE tbl_insulin (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_turkish_ci;
 
--- 12. Egzersiz uyum takibi
 CREATE TABLE tbl_egzersiz_takip (
-  hasta_tc   CHAR(11) NOT NULL,
-  tarih_saat DATETIME NOT NULL,
-  yapildi    BOOLEAN  NOT NULL,
+  hasta_tc           CHAR(11)      NOT NULL,
+  tarih_saat         DATETIME      NOT NULL,
+  yapilan_egzersiz   VARCHAR(255)  NOT NULL,
   PRIMARY KEY (hasta_tc, tarih_saat),
   FOREIGN KEY (hasta_tc)
     REFERENCES hasta(kullanici_adi)
@@ -162,11 +161,12 @@ CREATE TABLE tbl_egzersiz_takip (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_turkish_ci;
 
--- 13. Diyet uyum takibi
+
+-- 13. Diyet uyum takibi (uygulanan diyet adı veya "Diyet uygulanmadı")
 CREATE TABLE tbl_diyet_takip (
-  hasta_tc   CHAR(11) NOT NULL,
-  tarih_saat DATETIME NOT NULL,
-  uygulandi  BOOLEAN  NOT NULL,
+  hasta_tc           CHAR(11)      NOT NULL,
+  tarih_saat         DATETIME      NOT NULL,
+  uygulanan_diyet    VARCHAR(255)  NOT NULL,
   PRIMARY KEY (hasta_tc, tarih_saat),
   FOREIGN KEY (hasta_tc)
     REFERENCES hasta(kullanici_adi)
