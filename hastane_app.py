@@ -387,29 +387,32 @@ class DoctorFrame(tk.Frame):
         if photo_path:
             try:
                 img = Image.open(photo_path)
-                img = img.resize((80, 80))  # Fotoğraf boyutu ayarla
+                img = img.resize((80, 80))
                 photo = ImageTk.PhotoImage(img)
                 self.photo_label.config(image=photo)
-                self.photo_label.image = photo  # Referans tut
+                self.photo_label.image = photo
             except Exception as e:
                 print(f"Fotoğraf yüklenemedi: {e}")
 
-        # Hasta listesini doldur
+        # Hasta listesini yenile
         menu = self.patient_menu["menu"]
         menu.delete(0, "end")
-        for tc, isim in self.controller.get_my_patients():
+        patients = self.controller.get_my_patients()
+        for tc, isim in patients:
             menu.add_command(
                 label=f"{tc} – {isim}",
                 command=lambda v=tc: self.patient_var.set(v)
             )
-        patients = self.controller.get_my_patients()
-        if patients:
-            self.patient_var.set(patients[0][0])
+        # Seçimi koru: var değeri listede yoksa ilk hastayı ayarla
+        current = self.patient_var.get()
+        ids = [tc for tc, _ in patients]
+        if not current or current not in ids:
+            if ids:
+                self.patient_var.set(ids[0])
 
         super().tkraise(above)
 
     def get_doctor_photo_path(self, tc):
-        # MySQL'den doktorun fotoğraf yolunu çek
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor()
@@ -420,6 +423,7 @@ class DoctorFrame(tk.Frame):
         except Exception as e:
             print(f"MySQL Hata: {e}")
             return None
+
 
 
 # -----------------------------------------------------
