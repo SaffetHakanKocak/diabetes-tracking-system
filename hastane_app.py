@@ -1166,102 +1166,133 @@ class OlcumEntryFrame(tk.Frame):
         labels = ["Tarih/Saat (DD.MM.YYYY HH:MM:SS):", "Seviye (mg/dL):", "Tür:"]
         for i, text in enumerate(labels):
             tk.Label(form, text=text, bg="white",
-                     font=("Arial", 12)).grid(row=i, column=0, sticky="e", padx=10, pady=8)
+                     font=("Arial", 12)).grid(row=i, column=0,
+                                              sticky="e", padx=10, pady=8)
 
         # Girdi alanları
         self.tarih = tk.Entry(form, font=("Arial", 12), width=25)
         self.tarih.grid(row=0, column=1, padx=10, pady=8)
         self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 
+        gs_btn = tk.Button(form, text="Gün Sonu", command=self.end_of_day)
+        gs_btn.grid(row=0, column=2, padx=10, pady=8)
+
         self.seviye = tk.Entry(form, font=("Arial", 12), width=25)
         self.seviye.grid(row=1, column=1, padx=10, pady=8)
 
         self.tur_var = tk.StringVar(value="Sabah")
-        tk.OptionMenu(form, self.tur_var, *['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Gece']) \
+        tk.OptionMenu(form, self.tur_var,
+                      *['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Gece']) \
             .grid(row=2, column=1, padx=10, pady=8, sticky="w")
 
         # Butonlar
         btn_frame = tk.Frame(self, bg="white")
         btn_frame.pack(pady=(20, 10))
-
         tk.Button(btn_frame, text="Kaydet", width=12,
                   command=self.save).pack(side="left", padx=5)
         tk.Button(btn_frame, text="Geri", width=12,
                   command=controller.go_back).pack(side="left", padx=5)
 
+        # Mesajları gösterecek alan
+        self.msg_area = tk.Message(
+            self,
+            text="",
+            width=600,
+            bg="white",
+            font=("Arial", 12),
+            justify="left"
+        )
+        self.msg_area.pack(pady=(10, 0), padx=20)
+
     def save(self):
-        tc       = self.controller.current_user_tc
-        tr_input = self.tarih.get().strip()       # "DD.MM.YYYY HH:MM:SS"
+        # Mesaj alanını temizle
+        self.msg_area.config(text="")
+        messages = []
+
+        tc = self.controller.current_user_tc
+        tr_input = self.tarih.get().strip()  # "DD.MM.YYYY HH:MM:SS"
         try:
             sv = int(self.seviye.get())
         except ValueError:
             messagebox.showerror("Hata", "Seviye sayısal olmalı.")
             return
-        tur      = self.tur_var.get()
+        tur = self.tur_var.get()
 
         try:
             # Tarih parse & MySQL format
             dt_local = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S") \
-                             .replace(tzinfo=ZoneInfo("Europe/Istanbul"))
+                       .replace(tzinfo=ZoneInfo("Europe/Istanbul"))
             tr_mysql = dt_local.strftime("%Y-%m-%d %H:%M:%S")
 
             conn = mysql.connector.connect(**DB_CONFIG)
-            cur  = conn.cursor(buffered=True)
+            cur = conn.cursor(buffered=True)
 
+            # Aynı güne aynı türden tekrar girilmesini engelle
             cur.execute(
                 "SELECT 1 FROM tbl_olcum "
                 "WHERE hasta_tc=%s AND tur=%s AND DATE(tarih_saat)=DATE(%s)",
                 (tc, tur, tr_mysql)
             )
             if cur.fetchone():
-                messagebox.showerror(
-                    "Hata",
-                    f"Bugün için zaten “{tur}” ölçümü kaydedilmiş, tekrar eklenemez."
-                )
+                messages.append(f"Bugün için zaten “{tur}” ölçümü kaydedilmiş, tekrar eklenemez.")
+                self.msg_area.config(text="\n".join(messages))
                 cur.close()
                 conn.close()
                 return
-            
-            # 1) Ölçümü tabloya her koşulda kaydet
+
+            # 1) Ölçümü tabloya kaydet
             cur.execute(
                 "INSERT INTO tbl_olcum (hasta_tc, tarih_saat, seviye_mgdl, tur) "
                 "VALUES (%s, %s, %s, %s)",
                 (tc, tr_mysql, sv, tur)
             )
-            """
-            # 2) Kritik seviye uyarıları
-            if sv < 70:
-                tip, msg = "Acil Uyarı", "Hastanın kan şekeri seviyesi 70 mg/dL'nin altına düştü."
-            elif sv > 200:
-                tip, msg = "Acil Müdahale Uyarısı", "Hastanın kan şekeri 200 mg/dL'nin üzerinde."
-            elif 111 <= sv <= 150:
-                tip, msg = "Takip Uyarısı", "Kan şekeri 111–150 mg/dL arasında. İzlenmeli."
-            elif 151 <= sv <= 200:
-                tip, msg = "İzleme Uyarısı", "Kan şekeri 151–200 mg/dL arasında. Kontrol gerekli."
-            else:
-                tip = None
 
-            if tip:
-                cur.execute(
-                    "INSERT INTO uyarilar (hasta_tc, tarih_saat, mesaj) VALUES (%s, %s, %s)",
-                    (tc, tr_mysql, msg)
+            # 2) Ölçüm seviyesi uyarısı (Normal aralık = 70–110 hariç)
+            if sv < 70:
+                durum, uyarı_tipi, mesaj = (
+                    "Hipoglisemi Riski",
+                    "Acil Uyarı",
+                    "Hastanın kan şekeri seviyesi 70 mg/dL'nin altına düştü. Hipoglisemi riski! Hızlı müdahale gerekebilir."
                 )
-                messagebox.showwarning(tip, msg)
-            """
-            # 3) Zaman aralığı kontrolü: yeni ölçüm için uyarı
+            elif sv <= 110:
+                # Normal aralıkta -> uyarı yok, tabloya yazma
+                durum = uyarı_tipi = mesaj = None
+            elif sv <= 150:
+                durum, uyarı_tipi, mesaj = (
+                    "Orta Yüksek Seviye",
+                    "Takip Uyarısı",
+                    "Hastanın kan şekeri 111–150 mg/dL arasında. Durum izlenmeli."
+                )
+            elif sv <= 200:
+                durum, uyarı_tipi, mesaj = (
+                    "Yüksek Seviye",
+                    "İzleme Uyarısı",
+                    "Hastanın kan şekeri 151–200 mg/dL arasında. Diyabet kontrolü gerekli."
+                )
+            else:
+                durum, uyarı_tipi, mesaj = (
+                    "Çok Yüksek Seviye (Hiperglisemi)",
+                    "Acil Müdahale Uyarısı",
+                    "Hastanın kan şekeri 200 mg/dL'nin üzerinde. Hiperglisemi durumu. Acil müdahale gerekebilir."
+                )
+
+            if durum:
+                cur.execute(
+                    "INSERT INTO uyarilar (hasta_tc, tarih_saat, durum, uyarı_tipi, mesaj) "
+                    "VALUES (%s, %s, %s, %s, %s)",
+                    (tc, tr_mysql, durum, uyarı_tipi, mesaj)
+                )
+
+            # 2.5) Zaman aralığı kontrolü: yalnızca bu ölçüme ait uyarı
             start_new, end_new = VALID_WINDOWS[tur]
             if not (start_new <= dt_local.time() <= end_new):
                 msg2 = "Ölçüm zamanı aralık dışında; ortalamaya dahil edilmeyecek."
-                cur.execute(
-                    "INSERT INTO uyarilar (hasta_tc, tarih_saat, mesaj) VALUES (%s, %s, %s)",
-                    (tc, tr_mysql, msg2)
-                )
-                messagebox.showwarning("Ölçüm Eksik", msg2)
+                messages.append(msg2)
 
-            # 3.5) Önceki öğün türleri için eksik kontrolü
-            measurement_order = ['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Gece']
-            idx = measurement_order.index(tur)
-            for prev in measurement_order[:idx]:
+            # 3) Önceki öğünler eksikse bildir
+            order = ['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Gece']
+            idx = order.index(tur)
+            for prev in order[:idx]:
                 cur.execute(
                     "SELECT 1 FROM tbl_olcum "
                     "WHERE hasta_tc=%s AND DATE(tarih_saat)=DATE(%s) AND tur=%s",
@@ -1270,15 +1301,13 @@ class OlcumEntryFrame(tk.Frame):
                 if not cur.fetchone():
                     msg_prev = f"{prev} ölçümü eksik! Ortalama alınırken bu ölçüm hesaba katılmadı."
                     cur.execute(
-                        "INSERT INTO uyarilar (hasta_tc, tarih_saat, mesaj) VALUES (%s, %s, %s)",
-                        (tc, tr_mysql, msg_prev)
+                        "INSERT INTO uyarilar (hasta_tc, tarih_saat, mesaj, durum, uyarı_tipi) "
+                        "VALUES (%s, %s, %s, %s, %s)",
+                        (tc, tr_mysql, msg_prev, "Ölçüm Eksik", "Eksik Ölçüm Uyarısı")
                     )
-                    messagebox.showwarning("Ölçüm Eksik", msg_prev)
+                    messages.append(msg_prev)
 
-
-
-
-            # 4) Günün tüm ölçümlerini çek ama her biri kendi tür penceresinde filtrelensin
+            # 4) Bu günün ölçümlerini çek, sadece pencere içindekileri al
             cur.execute(
                 "SELECT tarih_saat, seviye_mgdl, tur "
                 "FROM tbl_olcum "
@@ -1286,64 +1315,45 @@ class OlcumEntryFrame(tk.Frame):
                 (tc, tr_mysql)
             )
             rows = cur.fetchall()
-
-            valid_levels = []
-            for ts, level, ttype in rows:
-                start, end = VALID_WINDOWS[ttype]     # burada ttype’a göre pencere alıyoruz
-                if start <= ts.time() <= end:
-                    valid_levels.append(level)
-                # not: eski kayıtlar için uyarı üretmiyoruz
-
-            # devamında valid_levels üzerinden ortalama hesaplanır…
-
+            valid = []
+            for ts, lvl, ttype in rows:
+                s, e = VALID_WINDOWS[ttype]
+                if s <= ts.time() <= e:
+                    valid.append(lvl)
 
             # 5) Yetersiz veri kontrolü
-            if len(valid_levels) < 3:
+            if len(valid) < 3:
                 msg3 = "Yetersiz veri! Ortalama hesaplaması güvenilir değildir."
-                cur.execute(
-                    "INSERT INTO uyarilar (hasta_tc, tarih_saat, mesaj) VALUES (%s, %s, %s)",
-                    (tc, tr_mysql, msg3)
-                )
-                messagebox.showwarning("Yetersiz Veri", msg3)
+                messages.append(msg3)
 
-            # 6) Ortalama ve insülin dozu hesaplama
-            avg = (sum(valid_levels) / len(valid_levels)) if valid_levels else 0.0
+            # 6) Ortalama + insülin dozu hesapla ve tabloya yaz, mesaj olarak ekle
+            avg = (sum(valid) / len(valid)) if valid else 0.0
             if avg <= 110:
-                dose = 0
+                dose, tip = 0, "Uyarı Yok"
+                msg_ins = f"Ort. kan şekeri {avg:.1f} mg/dL → İnsülin önerisi yok."
             elif avg <= 150:
-                dose = 1
+                dose, tip = 1, "Takip Uyarısı"
+                msg_ins = f"Ort. kan şekeri {avg:.1f} mg/dL → 1 ml insülin öneriliyor."
             elif avg <= 200:
-                dose = 2
+                dose, tip = 2, "İzleme Uyarısı"
+                msg_ins = f"Ort. kan şekeri {avg:.1f} mg/dL → 2 ml insülin öneriliyor."
             else:
-                dose = 3
-            if dose == 0:
-                cur.execute(
-                    "INSERT INTO tbl_insulin (hasta_tc, tarih_saat, birim_u) VALUES (%s, %s, %s)",
-                    (tc, tr_mysql, dose)
-                )
-                messagebox.showinfo(
-                    "İnsülin Önerisi",
-                    f"Ort. kan şekeri {avg:.1f} mg/dL İnsülin önerisi yok."
-                )
+                dose, tip = 3, "Acil Müdahale Uyarısı"
+                msg_ins = f"Ort. kan şekeri {avg:.1f} mg/dL → 3 ml insülin öneriliyor."
 
-                
-            if dose > 0:
-                cur.execute(
-                    "INSERT INTO tbl_insulin (hasta_tc, tarih_saat, birim_u) VALUES (%s, %s, %s)",
-                    (tc, tr_mysql, dose)
-                )
-                messagebox.showinfo(
-                    "İnsülin Önerisi",
-                    f"Ort. kan şekeri {avg:.1f} mg/dL Sistem tarafından {dose} ml insülin öneriliyor."
-                )
+            cur.execute(
+                "INSERT INTO tbl_insulin (hasta_tc, tarih_saat, birim_u) VALUES (%s, %s, %s)",
+                (tc, tr_mysql, dose)
+            )
+            messages.append(msg_ins)
 
-            # 7) Commit & cleanup
+            # 7) Commit & sonuçları ekranda göster
             conn.commit()
             cur.close()
             conn.close()
 
-            messagebox.showinfo("Başarılı", "Ölçüm kaydedildi.")
-            self.controller.show_frame("PatientFrame")
+            # Metin alanına tüm mesajları bir arada bas
+            self.msg_area.config(text="\n".join(messages))
 
         except ValueError:
             messagebox.showerror(
@@ -1352,6 +1362,54 @@ class OlcumEntryFrame(tk.Frame):
             )
         except Exception as e:
             messagebox.showerror("Hata", str(e))
+
+    def end_of_day(self):
+        tc = self.controller.current_user_tc
+        tr_input = self.tarih.get().strip()
+        # Tarihi MySQL formatına çevir
+        dt_local = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S") \
+                         .replace(tzinfo=ZoneInfo("Europe/Istanbul"))
+        tr_mysql = dt_local.strftime("%Y-%m-%d %H:%M:%S")
+
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur  = conn.cursor()
+
+        # O günkü toplam ölçüm sayısı
+        cur.execute(
+            "SELECT COUNT(*) FROM tbl_olcum WHERE hasta_tc=%s AND DATE(tarih_saat)=DATE(%s)",
+            (tc, tr_mysql)
+        )
+        toplam = cur.fetchone()[0] or 0
+
+        if toplam == 0:
+            durum, uyarı_tipi, mesaj = (
+                "Ölçüm Eksikliği (Hiç Giriş Yok)",
+                "Ölçüm Eksik Uyarısı",
+                "Hasta gün boyunca kan şekeri ölçümü yapmamıştır. Acil takip önerilir."
+            )
+        elif toplam < 3:
+            durum, uyarı_tipi, mesaj = (
+                "Ölçüm Eksikliği (3’ten Az Giriş)",
+                "Ölçüm Yetersiz Uyarısı",
+                "Hastanın günlük kan şekeri ölçüm sayısı yetersiz (<3). Durum izlenmelidir."
+            )
+        else:
+            # 3 veya daha fazla ölçüm varsa uyarı oluşturma
+            conn.close()
+            messagebox.showinfo("Gün Sonu", "Bugün için yeterli ölçüm var, uyarı oluşturulmadı.")
+            return
+
+        # Uyarıyı tabloya kaydet
+        cur.execute(
+            "INSERT INTO uyarilar (hasta_tc, tarih_saat, durum, uyarı_tipi, mesaj) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (tc, tr_mysql, durum, uyarı_tipi, mesaj)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        messagebox.showinfo("Gün Sonu Uyarısı", mesaj)
 
 # -----------------------------------------------------
 # Hasta — Egzersiz Uyum Takibi
@@ -2353,56 +2411,81 @@ class UyariFrame(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
+        self.configure(bg="white")
 
+        # Stil ayarları
+        s = ttk.Style(self)
+        # Kalın başlık fontu
+        s.configure("Treeview.Heading", font=("Arial", 12, "bold"))
+        # Satır yüksekliği ve font
+        s.configure("Treeview", rowheight=24, font=("Arial", 10))
+        
         # Başlık
-        tk.Label(
-            self,
-            text="Doktor — Uyarılar",
-            font=("Arial", 16, "bold"),
-            bg="white"
-        ).pack(pady=10)
+        tk.Label(self, text="Doktor — Uyarılar",
+                 font=("Arial", 20, "bold"), bg="white")\
+            .pack(pady=10)
 
         # Hasta seçimi
-        # controller.get_my_patients() -> [(tc, isim), ...]
-        patients = controller.get_my_patients()
+        patients = controller.get_my_patients()  # [(tc, isim), ...]
         options = [tc for tc, _ in patients]
-
-        # patient_var, DoctorFrame tarafından tanımlı
-        var = controller.frames["DoctorFrame"].patient_var
-        # Varsayılan değeri ilk hastanın TC'si olarak ayarla
+        self.patient_var = controller.frames["DoctorFrame"].patient_var
         if options:
-            var.set(options[0])
-        else:
-            var.set("")
+            self.patient_var.set(options[0])
+        ttk.OptionMenu(self, self.patient_var, self.patient_var.get(), *options)\
+            .pack(pady=5)
 
-        # OptionMenu(master, variable, default, *values)
-        self.option_menu = tk.OptionMenu(self, var, var.get(), *options)
-        self.option_menu.config(width=20)
-        self.option_menu.pack(pady=5)
+        # Acil Uyarılar Tablosu
+        self.acil_tv = ttk.Treeview(
+            self,
+            columns=("tarih_saat", "durum", "uyari_tipi", "mesaj"),
+            show="headings",
+            selectmode="none"
+        )
+        for col in ("tarih_saat", "durum", "uyari_tipi", "mesaj"):
+            self.acil_tv.heading(col, text=col.replace("_", " ").title(), anchor="center")
+            self.acil_tv.column(col, anchor="w", width=150 if col!="mesaj" else 400)
+        self.acil_tv.tag_configure("evenrow", background="#e6f2ff")
+        self.acil_tv.tag_configure("oddrow",  background="white")
+        tk.Label(self, text="ACİL UYARILAR",
+                 font=("Arial", 15, "bold"), bg="white")\
+            .pack(pady=(15,0), anchor="w", padx=10)
+        self.acil_tv.pack(padx=10, pady=(0,10), fill="x")
 
-        # Uyarıları listeleyecek metin alanı
-        self.text = tk.Text(self, width=80, height=20)
-        self.text.pack(pady=10)
+        # Diğer Uyarılar Tablosu
+        self.diger_tv = ttk.Treeview(
+            self,
+            columns=("tarih_saat", "durum", "uyari_tipi", "mesaj"),
+            show="headings",
+            selectmode="none"
+        )
+        for col in ("tarih_saat", "durum", "uyari_tipi", "mesaj"):
+            self.diger_tv.heading(col, text=col.replace("_", " ").title(), anchor="w")
+            self.diger_tv.column(col, anchor="w", width=150 if col!="mesaj" else 400)
+        self.diger_tv.tag_configure("evenrow", background="#e6f2ff")
+        self.diger_tv.tag_configure("oddrow",  background="white")
+        tk.Label(self, text="DİĞER UYARILAR",
+                 font=("Arial", 15, "bold"), bg="white")\
+            .pack(pady=(15,0), anchor="w", padx=10)
+        self.diger_tv.pack(padx=10, pady=(0,10), fill="x")
 
-        # Yenile ve Geri butonları
+        # Yenile / Geri butonları
         btnf = tk.Frame(self, bg="white")
-        btnf.pack(pady=5, fill="x")
-        tk.Button(btnf, text="Yenile", width=12,
-                  command=self.load_warnings).pack(side="left", padx=5)
-        tk.Button(btnf, text="Geri", width=12,
-                  command=controller.go_back).pack(side="right", padx=5)
+        btnf.pack(pady=10, fill="x")
+        tk.Button(btnf, text="Yenile", width=12, command=self.load_warnings)\
+            .pack(side="left", padx=5)
+        tk.Button(btnf, text="Geri", width=12, command=controller.go_back)\
+            .pack(side="right", padx=5)
+    def tkraise(self, aboveThis=None):
+        super().tkraise(aboveThis)
+        self.load_warnings()
+
 
     def load_warnings(self):
-        """
-        Seçili hastanın tüm uyarılarını çeker ve Text widget içine yazar.
-        Okundu bilgisini işaretlemek isterseniz burada UPDATE sorgusu ekleyebilirsiniz.
-        """
-        tc = self.controller.frames["DoctorFrame"].patient_var.get()
-
+        tc = self.patient_var.get()
         conn = mysql.connector.connect(**DB_CONFIG)
         cur  = conn.cursor()
         cur.execute(
-            "SELECT tarih_saat, mesaj, okundu "
+            "SELECT tarih_saat, durum, uyarı_tipi, mesaj "
             "FROM uyarilar "
             "WHERE hasta_tc=%s "
             "ORDER BY tarih_saat DESC",
@@ -2412,10 +2495,19 @@ class UyariFrame(tk.Frame):
         cur.close()
         conn.close()
 
-        self.text.delete("1.0", "end")
-        for tarih, mesaj, okundu in rows:
-            flag = "✓" if okundu else "•"
-            self.text.insert("end", f"{flag} {tarih} — {mesaj}\n\n")
+        # Tablo temizle
+        for tv in (self.acil_tv, self.diger_tv):
+            for iid in tv.get_children():
+                tv.delete(iid)
+
+        # Satır ekle (alternating renklerle)
+        acil_rows  = [r for r in rows if r[2] == "Acil Uyarı"]
+        diger_rows = [r for r in rows if r[2] != "Acil Uyarı"]
+
+        for tv, data in ((self.acil_tv, acil_rows), (self.diger_tv, diger_rows)):
+            for idx, (tarih, durum, tip, msg) in enumerate(data):
+                tag = "evenrow" if idx%2==0 else "oddrow"
+                tv.insert("", "end", values=(tarih, durum, tip, msg), tags=(tag,))
 
 # -----------------------------------------------------
 # Uygulamayı Çalıştır
