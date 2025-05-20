@@ -15,6 +15,7 @@ from datetime import datetime, time, date
 from zoneinfo import ZoneInfo
 import random
 from datetime import datetime
+import os
 #denemeeeeeeeeeeeeeeee
 # — EKLENECEK: Ölçüm aralıkları sabitleri
 VALID_WINDOWS = {
@@ -114,6 +115,21 @@ class App(tk.Tk):
         self.title("Hasta Takip Sistemi")
         self.state("zoomed")
 
+        # ---- MODERN BUTTON STYLE ----
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=12,
+            background="#fff",
+            foreground="#222e44",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#222e44')]
+        )
         # ekran boyutları
         self.update_idletasks()
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
@@ -326,31 +342,72 @@ class DoctorFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        # Arka plan
-        bg = tk.Label(self, image=controller.bg_image)
-        bg.place(relx=0, rely=0, relwidth=1, relheight=1)
+        # --- BACKGROUND PNG ---
+        bg_path = os.path.join(os.path.dirname(__file__), "background.png")
+        self.bg_img_raw = Image.open(bg_path)
+        self.bg_img = None
+        self.bg_label = tk.Label(self)
+        self.bg_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.bg_label.lower()
 
-        # Üst çerçeve: başlık + fotoğraf
-        top_frame = tk.Frame(self, bg="white")
-        top_frame.pack(pady=15)
+        # Resize background when window/frame size changes
+        self.bind("<Configure>", self._resize_bg)
 
-        # Doktor fotoğrafı (boş label, sonra doldurulacak)
-        self.photo_label = tk.Label(top_frame, bg="white")
-        self.photo_label.pack(side="left", padx=10)
+        # Üst Card: Fotoğraf + Başlık + Hasta Seçimi
+        top_card = tk.Frame(self, bg="#f4f6fb")
+        top_card.pack(pady=28)
 
-        # Başlık
-        self.header = tk.Label(top_frame, font=("Arial", 18, "bold"), bg="white")
-        self.header.pack(side="left", padx=10)
+        self.photo_label = tk.Label(top_card, bg="#f4f6fb", bd=0)
+        self.photo_label.pack(side="left", padx=24)
 
-        # Hasta seçimi
+        text_frame = tk.Frame(top_card, bg="#f4f6fb")
+        text_frame.pack(side="left")
+
+        self.header = tk.Label(
+            text_frame,
+            font=("Arial", 21, "bold"),
+            bg="#f4f6fb",
+            fg="#252a34"
+        )
+        self.header.pack(anchor="w", pady=(0, 8))
+
+        patient_card = tk.Frame(text_frame, bg="white", bd=0, relief="groove", padx=18, pady=12)
+        patient_card.pack(anchor="w")
+        tk.Label(
+            patient_card,
+            text="Hasta:",
+            font=("Segoe UI", 12, "bold"),
+            bg="white",
+            fg="#3a435e"
+        ).pack(side="left", padx=(0, 12))
+
         self.patient_var = tk.StringVar()
-        tk.Label(self, text="Hasta:", font=("Arial", 12), bg="white").pack(pady=5)
-        self.patient_menu = tk.OptionMenu(self, self.patient_var, "")
-        self.patient_menu.pack()
+        self.patient_menu = ttk.Combobox(
+            patient_card,
+            textvariable=self.patient_var,
+            font=("Segoe UI", 11),
+            state="readonly",
+            width=25
+        )
+        self.patient_menu.pack(side="left")
 
-        # İşlem butonları
-        btn_container = tk.Frame(self, bg="white")
-        btn_container.pack(pady=20)
+        # Modern butonlar card
+        btn_card = tk.Frame(self, bg="#f4f6fb")
+        btn_card.pack(pady=38)
+
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=12,
+            background="#fff",
+            foreground="#222e44",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#222e44')]
+        )
 
         buttons = [
             ("Hasta Tanımlama", "NewPatientFrame"),
@@ -363,54 +420,62 @@ class DoctorFrame(tk.Frame):
             ("Grafikler",       "DoctorGraphFrame"),
             ("Uyarılar",        "UyariFrame"),
         ]
-        for (label, frame_name) in buttons:
-            tk.Button(
-                btn_container,
+        for idx, (label, frame_name) in enumerate(buttons):
+            row, col = divmod(idx, 3)
+            btn = ttk.Button(
+                btn_card,
                 text=label,
-                width=14,
+                style="Modern.TButton",
+                width=18,
                 command=lambda f=frame_name: controller.show_frame(f)
-            ).pack(side="left", padx=5)
+            )
+            btn.grid(row=row, column=col, padx=18, pady=14, sticky="ew")
 
-        # Alt navigasyon
-        nav = tk.Frame(self, bg="white")
-        nav.pack(side="bottom", fill="x", pady=10)
-        tk.Button(nav, text="Geri", command=controller.go_back).pack(side="left", padx=20)
-        tk.Button(nav, text="Çıkış", command=controller.destroy).pack(side="right", padx=20)
+        nav = tk.Frame(self, bg="#f4f6fb")
+        nav.pack(side="bottom", fill="x", pady=16)
+        ttk.Button(
+            nav, text="Geri",
+            style="Modern.TButton",
+            command=controller.go_back
+        ).pack(side="left", padx=35)
+        ttk.Button(
+            nav, text="Çıkış",
+            style="Modern.TButton",
+            command=controller.destroy
+        ).pack(side="right", padx=35)
+
+    def _resize_bg(self, event):
+        # Bu fonksiyon arka planı pencerenin tamamını kaplayacak şekilde yeniden boyutlandırır
+        w, h = event.width, event.height
+        img = self.bg_img_raw.resize((max(w,1), max(h,1)), Image.LANCZOS)
+        self.bg_img = ImageTk.PhotoImage(img)
+        self.bg_label.config(image=self.bg_img)
 
     def tkraise(self, above=None):
-        # Başlığı güncelle
         self.header.config(text=f"Hoşgeldiniz Dr. {self.controller.current_user_name}")
 
-        # Fotoğraf yükle
-        doctor_tc = self.controller.current_user_tc  # giriş yapan doktorun tc
+        doctor_tc = self.controller.current_user_tc
         photo_path = self.get_doctor_photo_path(doctor_tc)
         if photo_path:
             try:
-                img = Image.open(photo_path)
-                img = img.resize((80, 80))
+                img = Image.open(photo_path).resize((86, 86))
                 photo = ImageTk.PhotoImage(img)
                 self.photo_label.config(image=photo)
                 self.photo_label.image = photo
             except Exception as e:
                 print(f"Fotoğraf yüklenemedi: {e}")
 
-        # Hasta listesini yenile
-        menu = self.patient_menu["menu"]
-        menu.delete(0, "end")
+        # Hasta combobox'una sadece TC ekle (isim ekleme!)
         patients = self.controller.get_my_patients()
-        for tc, isim in patients:
-            menu.add_command(
-                label=f"{tc} – {isim}",
-                command=lambda v=tc: self.patient_var.set(v)
-            )
-        # Seçimi koru: var değeri listede yoksa ilk hastayı ayarla
-        current = self.patient_var.get()
-        ids = [tc for tc, _ in patients]
-        if not current or current not in ids:
-            if ids:
-                self.patient_var.set(ids[0])
+        tcs = [tc for tc, isim in patients]   # sadece TC listesi
+        self.patient_menu['values'] = tcs
+        if tcs:
+            current = self.patient_var.get()
+            if not current or current not in tcs:
+                self.patient_var.set(tcs[0])
 
         super().tkraise(above)
+
 
     def get_doctor_photo_path(self, tc):
         try:
@@ -426,6 +491,8 @@ class DoctorFrame(tk.Frame):
 
 
 
+
+
 # -----------------------------------------------------
 # Yeni Hasta Kayıt
 # -----------------------------------------------------
@@ -434,49 +501,109 @@ class NewPatientFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        # Arka plan
-        bg = tk.Label(self, image=controller.bg_image)
-        bg.place(relx=0, rely=0, relwidth=1, relheight=1)
+        # BACKGROUND PNG
+        bg_path = os.path.join(os.path.dirname(__file__), "background.png")
+        self.bg_img_raw = Image.open(bg_path)
+        self.bg_img = None
+        self.bg_label = tk.Label(self)
+        self.bg_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.bg_label.lower()
+        self.bind("<Configure>", self._resize_bg)
 
-        tk.Label(self, text="Yeni Hasta Kayıt",
-                 font=("Arial", 16, "bold"), bg="white").pack(pady=10)
-        frm = tk.Frame(self, bg="white")
-        frm.pack(pady=5)
+        # Formun açık mavi ana arka planı
+        form_bg = "#eaf6fb"
+        card = tk.Frame(self, bg=form_bg, bd=0, relief="flat", padx=28, pady=18)
+        card.place(relx=0.5, rely=0.5, anchor="c")
 
-        # Label isimleri (şifre çıkarıldı!)
-        labels = ["TC", "Resim", "E-posta",
-                  "Doğum (DD.MM.YYYY)", "Cinsiyet", "İsim", "Şehir"]
+        # BAŞLIK - açık kahverengi bar
+        header_frame = tk.Frame(card, bg="#ffe0b2")
+        header_frame.pack(fill="x", pady=(0, 16))
+        tk.Label(
+            header_frame,
+            text="Yeni Hasta Kayıt",
+            font=("Arial", 26, "bold"),
+            bg="#ffe0b2",
+            fg="#232946",
+            pady=12
+        ).pack(padx=20, fill="x")
+
+        # FORM
+        frm = tk.Frame(card, bg=form_bg)
+        frm.pack(pady=(10, 0), padx=10)
+
+        labels = ["TC", "Resim", "E-posta", "Doğum (DD.MM.YYYY)", "Cinsiyet(E-K)", "İsim", "Şehir"]
         self.entries = {}
 
         for i, lbl in enumerate(labels):
-            tk.Label(frm, text=lbl + ":", bg="white").grid(
-                row=i, column=0, sticky="e", pady=2, padx=5
-            )
+            row_frame = tk.Frame(frm, bg=form_bg)
+            row_frame.grid(row=2*i, column=0, sticky="ew", pady=0)
+            row_frame.grid_columnconfigure(1, weight=1)
+
+            # Genişliği artır: width=22
+            tk.Label(row_frame, text=lbl + ":", bg=form_bg,
+                    font=("Segoe UI", 12, "bold"), anchor="e", width=22)\
+                .grid(row=0, column=0, sticky="e", pady=8, padx=(0, 8))
 
             if lbl == "Resim":
-                resim_frame = tk.Frame(frm, bg="white")
-                resim_frame.grid(row=i, column=1, pady=2, padx=5, sticky="w")
-                resim_entry = tk.Entry(resim_frame, width=25)
-                resim_entry.pack(side="left")
-                self.entries[lbl] = resim_entry
-                sec_button = tk.Button(
-                    resim_frame,
-                    text="Seç",
-                    command=lambda e=resim_entry: self.select_file(e)
-                )
-                sec_button.pack(side="left", padx=5)
-            else:
-                e = tk.Entry(frm, width=30)
-                e.grid(row=i, column=1, pady=2, padx=5)
-                self.entries[lbl] = e
+                entry = tk.Entry(row_frame, width=29, font=("Segoe UI", 12))
+                entry.grid(row=0, column=1, sticky="w", pady=8, padx=(0, 4))
+                self.entries[lbl] = entry
 
-        # Butonlar
-        bf = tk.Frame(self, bg="white")
-        bf.pack(pady=15)
-        tk.Button(bf, text="Kaydet", width=12,
-                  command=self.save).pack(side="left", padx=5)
-        tk.Button(bf, text="Geri", width=12,
-                  command=controller.go_back).pack(side="right", padx=5)
+                sec_button = ttk.Button(
+                    row_frame,
+                    text="Seç",
+                    width=6,
+                    style="Small.TButton",
+                    command=lambda e=entry: self.select_file(e)
+                )
+                sec_button.grid(row=0, column=2, padx=(4, 0), sticky="w")
+            else:
+                entry = tk.Entry(row_frame, width=34, font=("Segoe UI", 12))
+                entry.grid(row=0, column=1, sticky="w", pady=8)
+                self.entries[lbl] = entry
+
+            if i < len(labels)-1:
+                sep = ttk.Separator(frm, orient="horizontal")
+                sep.grid(row=2*i+1, column=0, sticky="ew", padx=0, pady=0)
+
+
+        # MODERN BUTON STİLİ
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 12, "bold"),
+            padding=8,
+            background="#fff",
+            foreground="#232946",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#232946')]
+        )
+        style.configure(
+            "Small.TButton",
+            font=("Segoe UI", 10, "bold"),
+            padding=3,
+            background="#fff",
+            foreground="#232946",
+            borderwidth=0
+        )
+
+        # BUTONLAR
+        bf = tk.Frame(card, bg=form_bg)
+        bf.pack(pady=(25, 2))
+        ttk.Button(bf, text="Kaydet", width=15,
+                   style="Modern.TButton", command=self.save).pack(side="left", padx=10)
+        ttk.Button(bf, text="Geri", width=15,
+                   style="Modern.TButton", command=controller.go_back).pack(side="right", padx=10)
+
+    def _resize_bg(self, event):
+        # Arka planı pencereyle beraber yeniden boyutlandır
+        w, h = event.width, event.height
+        img = self.bg_img_raw.resize((max(w,1), max(h,1)), Image.LANCZOS)
+        self.bg_img = ImageTk.PhotoImage(img)
+        self.bg_label.config(image=self.bg_img)
 
     def select_file(self, entry_widget):
         file_path = filedialog.askopenfilename(
@@ -496,19 +623,16 @@ class NewPatientFrame(tk.Frame):
 
         tc, img, em, dob_input, gn, ad, se = vals
 
-        # TC doğrulama
         if not (tc.isdigit() and len(tc) == 11):
             messagebox.showerror("Geçersiz TC",
                                  "TC kimlik numarası 11 haneli olmalı ve sadece rakam içermelidir.")
             return
 
-        # Otomatik 6 haneli şifre oluştur
         random_password = "{:06d}".format(random.randint(0, 999999))
         salt = bcrypt.gensalt(rounds=HASH_ROUNDS)
         pw_hash = bcrypt.hashpw(random_password.encode(), salt)
 
         try:
-            # Doğum tarihini parse edip MySQL formatına çevir
             dt_dob = datetime.strptime(dob_input, "%d.%m.%Y")
             dob_mysql = dt_dob.strftime("%Y-%m-%d")
 
@@ -524,7 +648,6 @@ class NewPatientFrame(tk.Frame):
             cur.close()
             conn.close()
 
-            # E-posta gönder
             send_email(em, tc, random_password, self.controller.current_user_name)
             messagebox.showinfo("Başarılı", "Hasta kaydedildi.\nŞifre e-posta ile gönderildi.")
             self.controller.show_frame("DoctorFrame")
@@ -539,47 +662,96 @@ class NewPatientFrame(tk.Frame):
 
 
 
-
 # -----------------------------------------------------
 # Doktor için Ölçüm Girişi
 # -----------------------------------------------------
+
 class DoctorOlcumFrame(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
 
-        # Arka plan
-        bg = tk.Label(self, image=controller.bg_image)
-        bg.place(relx=0, rely=0, relwidth=1, relheight=1)
+        # BACKGROUND PNG
+        bg_path = os.path.join(os.path.dirname(__file__), "background.png")
+        self.bg_img_raw = Image.open(bg_path)
+        self.bg_img = None
+        self.bg_label = tk.Label(self)
+        self.bg_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.bg_label.lower()
+        self.bind("<Configure>", self._resize_bg)
 
-        # Başlık
-        tk.Label(self, text="Doktor — Yeni Ölçüm Girişi",
-                 font=("Arial", 16, "bold"), bg="white").pack(pady=10)
+        # Card Box (eni büyütüldü)
+        card = tk.Frame(self, bg="#eaf6fb", bd=0, relief="flat", padx=55, pady=32)
+        card.place(relx=0.5, rely=0.23, anchor="n")
 
-        # Form
-        frm = tk.Frame(self, bg="white")
-        frm.pack(pady=5)
+        # Başlık (açık kahve arka planlı)
+        header_frame = tk.Frame(card, bg="#ffe0b2")
+        header_frame.pack(fill="x", pady=(0, 20))
+        tk.Label(
+            header_frame,
+            text="Doktor — Yeni Ölçüm Girişi",
+            font=("Arial", 25, "bold"),
+            bg="#ffe0b2",
+            fg="#232946",
+            pady=12
+        ).pack(padx=25, fill="x")
 
-        # Hasta TC (DoctorFrame’den geliyor)
-        tk.Label(frm, text="Hasta TC:", bg="white").grid(row=0, column=0, sticky="e", pady=2, padx=5)
-        self.tc = tk.Label(frm, text="", bg="white")
-        self.tc.grid(row=0, column=1, sticky="w", pady=2)
+        # FORM
+        frm = tk.Frame(card, bg="#eaf6fb")
+        frm.pack(pady=(7, 0), padx=10)
 
-        # Tarih/Saat
-        tk.Label(frm, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="white").grid(row=1, column=0, sticky="e", pady=2, padx=5)
-        self.tarih = tk.Entry(frm, width=25)
-        self.tarih.grid(row=1, column=1, pady=2)
+        # Satır 1: Hasta TC
+        tk.Label(frm, text="Hasta TC:", bg="#eaf6fb", font=("Segoe UI", 13, "bold"),
+                 width=32, anchor="e").grid(row=0, column=0, sticky="e", pady=12, padx=(0,8))
+        self.tc = tk.Label(frm, text="", bg="#eaf6fb", font=("Segoe UI", 13), anchor="w")
+        self.tc.grid(row=0, column=1, sticky="w", pady=12)
 
-        # Seviye
-        tk.Label(frm, text="Seviye (mg/dL):", bg="white").grid(row=2, column=0, sticky="e", pady=2, padx=5)
-        self.seviye = tk.Entry(frm, width=25)
-        self.seviye.grid(row=2, column=1, pady=2)
+        ttk.Separator(frm, orient="horizontal").grid(row=1, column=0, columnspan=2, sticky="ew", padx=6)
+
+        # Satır 2: Tarih/Saat
+        tk.Label(frm, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="#eaf6fb",
+                 font=("Segoe UI", 13, "bold"), width=32, anchor="e")\
+            .grid(row=2, column=0, sticky="e", pady=12, padx=(0,8))
+        self.tarih = tk.Entry(frm, width=28, font=("Segoe UI", 13))
+        self.tarih.grid(row=2, column=1, sticky="w", pady=12)
+
+        ttk.Separator(frm, orient="horizontal").grid(row=3, column=0, columnspan=2, sticky="ew", padx=6)
+
+        # Satır 3: Seviye
+        tk.Label(frm, text="Seviye (mg/dL):", bg="#eaf6fb", font=("Segoe UI", 13, "bold"),
+                 width=32, anchor="e").grid(row=4, column=0, sticky="e", pady=12, padx=(0,8))
+        self.seviye = tk.Entry(frm, width=28, font=("Segoe UI", 13))
+        self.seviye.grid(row=4, column=1, sticky="w", pady=12)
+
+        # MODERN BUTON STİLİ
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 13, "bold"),
+            padding=11,
+            background="#fff",
+            foreground="#232946",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#232946')]
+        )
 
         # Butonlar
-        bf = tk.Frame(self, bg="white")
-        bf.pack(pady=15)
-        tk.Button(bf, text="Kaydet", command=self.save).pack(side="left", padx=5)
-        tk.Button(bf, text="Geri", command=controller.go_back).pack(side="right", padx=5)
+        bf = tk.Frame(card, bg="#eaf6fb")
+        bf.pack(pady=(24, 4))
+        ttk.Button(bf, text="Kaydet", width=16,
+                   style="Modern.TButton", command=self.save).pack(side="left", padx=15)
+        ttk.Button(bf, text="Geri", width=16,
+                   style="Modern.TButton", command=controller.go_back).pack(side="right", padx=15)
+
+    def _resize_bg(self, event):
+        # Arka planı pencereyle beraber yeniden boyutlandır
+        w, h = event.width, event.height
+        img = self.bg_img_raw.resize((max(w,1), max(h,1)), Image.LANCZOS)
+        self.bg_img = ImageTk.PhotoImage(img)
+        self.bg_label.config(image=self.bg_img)
 
     def tkraise(self, above=None):
         # DoctorFrame’den seçili hastayı al
@@ -625,6 +797,7 @@ class DoctorOlcumFrame(tk.Frame):
         except Exception as e:
             messagebox.showerror("Hata", f"Veri kaydedilirken hata oluştu:\n{e}")
 
+
 # -----------------------------------------------------
 # Doktor için Belirti Girişi
 # -----------------------------------------------------
@@ -632,53 +805,109 @@ class SymptomFrame(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
-        bg = tk.Label(self, image=controller.bg_image)
-        bg.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-        tk.Label(self, text="Doktor — Belirti Girişi",
-                 font=("Arial",16,"bold"), bg="white").pack(pady=10)
-        frm = tk.Frame(self, bg="white"); frm.pack(pady=5)
+        # BACKGROUND PNG
+        bg_path = os.path.join(os.path.dirname(__file__), "background.png")
+        self.bg_img_raw = Image.open(bg_path)
+        self.bg_img = None
+        self.bg_label = tk.Label(self)
+        self.bg_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.bg_label.lower()
+        self.bind("<Configure>", self._resize_bg)
 
-        # Hasta TC
-        tk.Label(frm, text="Hasta TC:", bg="white") \
-            .grid(row=0, column=0, sticky="e", padx=5, pady=2)
-        self.tc = tk.Label(frm, text="", bg="white")
-        self.tc.grid(row=0, column=1, sticky="w", pady=2)
+        # Card Box
+        card = tk.Frame(self, bg="#eaf6fb", bd=0, relief="flat", padx=45, pady=24)
+        card.place(relx=0.5, rely=0.2, anchor="n")
 
-        # Tarih/Saat (DD.MM.YYYY HH:MM:SS)
-        tk.Label(frm, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="white") \
-            .grid(row=1, column=0, sticky="e", padx=5, pady=2)
-        self.tarih = tk.Entry(frm, font=("Arial",12), width=25)
-        self.tarih.grid(row=1, column=1, pady=2)
-        # Örnek placeholder (isteğe bağlı)
+        # Başlık (açık kahve bar)
+        header_frame = tk.Frame(card, bg="#ffe0b2")
+        header_frame.pack(fill="x", pady=(0, 20))
+        tk.Label(
+            header_frame,
+            text="Doktor — Belirti Girişi",
+            font=("Arial", 24, "bold"),
+            bg="#ffe0b2",
+            fg="#232946",
+            pady=10
+        ).pack(padx=16, fill="x")
+
+        # FORM grid ile hizalı
+        frm = tk.Frame(card, bg="#eaf6fb")
+        frm.pack(pady=(4, 0), padx=10)
+
+        # Satır 1: Hasta TC
+        tk.Label(frm, text="Hasta TC:", bg="#eaf6fb", font=("Segoe UI", 12, "bold"),
+                 width=24, anchor="e").grid(row=0, column=0, sticky="e", pady=9, padx=(0, 8))
+        self.tc = tk.Label(frm, text="", bg="#eaf6fb", font=("Segoe UI", 12), anchor="w")
+        self.tc.grid(row=0, column=1, sticky="w", pady=9)
+
+        ttk.Separator(frm, orient="horizontal").grid(row=1, column=0, columnspan=2, sticky="ew", padx=6)
+
+        # Satır 2: Tarih/Saat
+        tk.Label(frm, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="#eaf6fb",
+                 font=("Segoe UI", 12, "bold"), width=34, anchor="e")\
+            .grid(row=2, column=0, sticky="e", pady=9, padx=(0,8))
+        self.tarih = tk.Entry(frm, width=28, font=("Segoe UI", 12))
+        self.tarih.grid(row=2, column=1, sticky="w", pady=9)
+        # Otomatik doldur
         self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 
-        # Semptom türleri
+        ttk.Separator(frm, orient="horizontal").grid(row=3, column=0, columnspan=2, sticky="ew", padx=6)
+
+        # Satır 3: Semptom türleri
+        # (ilk açılışta DB'den çekilir)
         conn = mysql.connector.connect(**DB_CONFIG)
         cur = conn.cursor()
         cur.execute("SELECT id, tur FROM semptom_turleri")
         self.semptom_turleri = cur.fetchall()
         cur.close(); conn.close()
-
         semptom_isimler = [t for _, t in self.semptom_turleri]
-        tk.Label(frm, text="Semptom Türü:", bg="white") \
-            .grid(row=2, column=0, sticky="e", padx=5, pady=2)
+
+        tk.Label(frm, text="Semptom Türü:", bg="#eaf6fb", font=("Segoe UI", 12, "bold"),
+                 width=24, anchor="e").grid(row=4, column=0, sticky="e", pady=9, padx=(0, 8))
         self.semptom_var = tk.StringVar(value=semptom_isimler[0])
-        tk.OptionMenu(frm, self.semptom_var, *semptom_isimler).grid(row=2, column=1, pady=2)
+        ttk.Combobox(frm, textvariable=self.semptom_var, values=semptom_isimler,
+                     font=("Segoe UI", 12), state="readonly", width=26)\
+            .grid(row=4, column=1, sticky="w", pady=9)
 
-        # Açıklama
-        tk.Label(frm, text="Açıklama:", bg="white") \
-            .grid(row=3, column=0, sticky="ne", padx=5, pady=2)
-        self.aciklama = tk.Text(frm, width=30, height=4)
-        self.aciklama.grid(row=3, column=1, pady=2)
+        ttk.Separator(frm, orient="horizontal").grid(row=5, column=0, columnspan=2, sticky="ew", padx=6)
 
-        # Butonlar
-        btnf = tk.Frame(self, bg="white"); btnf.pack(pady=15)
-        tk.Button(btnf, text="Kaydet", width=12, command=self.save).pack(side="left", padx=5)
-        tk.Button(btnf, text="Geri",   width=12, command=controller.go_back).pack(side="right", padx=5)
+        # Satır 4: Açıklama
+        tk.Label(frm, text="Açıklama:", bg="#eaf6fb", font=("Segoe UI", 12, "bold"),
+                 width=24, anchor="ne").grid(row=6, column=0, sticky="ne", pady=9, padx=(0, 8))
+        self.aciklama = tk.Text(frm, width=30, height=4, font=("Segoe UI", 12))
+        self.aciklama.grid(row=6, column=1, pady=9, sticky="w")
+
+        # BUTONLAR MODERN STİLDE
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 12, "bold"),
+            padding=9,
+            background="#fff",
+            foreground="#232946",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#232946')]
+        )
+
+        btnf = tk.Frame(card, bg="#eaf6fb")
+        btnf.pack(pady=20)
+        ttk.Button(btnf, text="Kaydet", width=15,
+                   style="Modern.TButton", command=self.save).pack(side="left", padx=10)
+        ttk.Button(btnf, text="Geri", width=15,
+                   style="Modern.TButton", command=controller.go_back).pack(side="right", padx=10)
+
+    def _resize_bg(self, event):
+        # Arka planı pencereyle beraber yeniden boyutlandır
+        w, h = event.width, event.height
+        img = self.bg_img_raw.resize((max(w,1), max(h,1)), Image.LANCZOS)
+        self.bg_img = ImageTk.PhotoImage(img)
+        self.bg_label.config(image=self.bg_img)
 
     def tkraise(self, above=None):
-        # Güncel hastayı al
         self.tc.config(text=self.controller.frames["DoctorFrame"].patient_var.get())
         super().tkraise(above)
 
@@ -691,8 +920,7 @@ class SymptomFrame(tk.Frame):
 
         try:
             # Tarih parse: DD.MM.YYYY HH:MM:SS
-            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S") \
-                     .replace(tzinfo=ZoneInfo("Europe/Istanbul"))
+            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S")
             tr = dt.strftime("%Y-%m-%d %H:%M:%S")  # DB’ye bu formatı yolluyoruz
 
             conn = mysql.connector.connect(**DB_CONFIG)
@@ -716,6 +944,7 @@ class SymptomFrame(tk.Frame):
         except Exception as e:
             messagebox.showerror("Hata", e)
 
+
 # -----------------------------------------------------
 # Doktor için Egzersiz Önerisi
 # -----------------------------------------------------
@@ -724,43 +953,100 @@ class EgzersizOnerFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        bg = tk.Label(self, image=controller.bg_image)
-        bg.place(relx=0, rely=0, relwidth=1, relheight=1)
+        # BACKGROUND PNG
+        bg_path = os.path.join(os.path.dirname(__file__), "background.png")
+        self.bg_img_raw = Image.open(bg_path)
+        self.bg_img = None
+        self.bg_label = tk.Label(self)
+        self.bg_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.bg_label.lower()
+        self.bind("<Configure>", self._resize_bg)
 
-        tk.Label(self, text="Doktor — Egzersiz Önerisi",
-                 font=("Arial", 16, "bold"), bg="white").pack(pady=10)
+        # Card Box (açık mavi, padding büyük)
+        card = tk.Frame(self, bg="#eaf6fb", bd=0, relief="flat", padx=48, pady=28)
+        card.place(relx=0.5, rely=0.2, anchor="n")
 
-        frm = tk.Frame(self, bg="white")
-        frm.pack(pady=5)
+        # Başlık (açık kahve bar)
+        header_frame = tk.Frame(card, bg="#ffe0b2")
+        header_frame.pack(fill="x", pady=(0, 22))
+        tk.Label(
+            header_frame,
+            text="Doktor — Egzersiz Önerisi",
+            font=("Arial", 24, "bold"),
+            bg="#ffe0b2",
+            fg="#232946",
+            pady=10
+        ).pack(padx=20, fill="x")
 
-        # Hasta TC
-        tk.Label(frm, text="Hasta TC:", bg="white")\
-            .grid(row=0, column=0, sticky="e", padx=5, pady=4)
-        self.tc = tk.Label(frm, text="", bg="white")
-        self.tc.grid(row=0, column=1, sticky="w", pady=4)
+        # Form
+        frm = tk.Frame(card, bg="#eaf6fb")
+        frm.pack(pady=(6, 0), padx=12)
 
-        # Tarih/Saat
-        tk.Label(frm, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="white")\
-            .grid(row=1, column=0, sticky="e", padx=5, pady=4)
-        self.tarih = tk.Entry(frm, font=("Arial", 12), width=25)
-        self.tarih.grid(row=1, column=1, pady=4)
+        # Satır 1: Hasta TC
+        tk.Label(frm, text="Hasta TC:", bg="#eaf6fb", font=("Segoe UI", 12, "bold"),
+                 width=24, anchor="e").grid(row=0, column=0, sticky="e", pady=9, padx=(0, 8))
+        self.tc = tk.Label(frm, text="", bg="#eaf6fb", font=("Segoe UI", 12), anchor="w")
+        self.tc.grid(row=0, column=1, sticky="w", pady=9)
+
+        ttk.Separator(frm, orient="horizontal").grid(row=1, column=0, columnspan=2, sticky="ew", padx=6)
+
+        # Satır 2: Tarih/Saat
+        tk.Label(frm, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="#eaf6fb",
+                 font=("Segoe UI", 12, "bold"), width=34, anchor="e")\
+            .grid(row=2, column=0, sticky="e", pady=9, padx=(0,8))
+        self.tarih = tk.Entry(frm, width=28, font=("Segoe UI", 12))
+        self.tarih.grid(row=2, column=1, sticky="w", pady=9)
         self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 
-        # Bilgilendirme yazısı (başlangıçta boş)
-        self.info_label = tk.Label(frm, text="", font=("Arial", 10), bg="white")
-        self.info_label.grid(row=2, column=0, columnspan=2, pady=(10, 0))
+        ttk.Separator(frm, orient="horizontal").grid(row=3, column=0, columnspan=2, sticky="ew", padx=6)
 
-        # Egzersiz türü
-        tk.Label(frm, text="Egzersiz Türü:", bg="white")\
-            .grid(row=3, column=0, sticky="e", padx=5, pady=4)
+        # Satır 3: Bilgilendirme
+        # Satır 3: Bilgilendirme
+        self.info_label = tk.Label(
+            frm,
+            text="",
+            font=("Segoe UI", 11, "italic"),
+            bg="#eaf6fb",
+            fg="#595959",
+            anchor="center",       # ortalamak için
+            justify="center"       # birden fazla satır varsa ortala
+        )
+        self.info_label.grid(row=4, column=0, columnspan=2, pady=(7, 0), sticky="ew")
+
+        # Satır 4: Egzersiz Türü
+        tk.Label(frm, text="Egzersiz Türü:", bg="#eaf6fb", font=("Segoe UI", 12, "bold"),
+                 width=24, anchor="e").grid(row=5, column=0, sticky="e", pady=9, padx=(0, 8))
         self.egz_var = tk.StringVar()
-        self.egz_menu = tk.OptionMenu(frm, self.egz_var, "")
-        self.egz_menu.grid(row=3, column=1, pady=4, sticky="w")
+        self.egz_menu = ttk.Combobox(frm, textvariable=self.egz_var, font=("Segoe UI", 12), state="readonly", width=26)
+        self.egz_menu.grid(row=5, column=1, sticky="w", pady=9)
 
-        btnf = tk.Frame(self, bg="white")
-        btnf.pack(pady=15)
-        tk.Button(btnf, text="Kaydet", width=12, command=self.save).pack(side="left", padx=5)
-        tk.Button(btnf, text="Geri", width=12, command=controller.go_back).pack(side="right", padx=5)
+        # Modern buton stili
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 12, "bold"),
+            padding=9,
+            background="#fff",
+            foreground="#232946",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#232946')]
+        )
+
+        btnf = tk.Frame(card, bg="#eaf6fb")
+        btnf.pack(pady=20)
+        ttk.Button(btnf, text="Kaydet", width=15,
+                   style="Modern.TButton", command=self.save).pack(side="left", padx=10)
+        ttk.Button(btnf, text="Geri", width=15,
+                   style="Modern.TButton", command=controller.go_back).pack(side="right", padx=10)
+
+    def _resize_bg(self, event):
+        w, h = event.width, event.height
+        img = self.bg_img_raw.resize((max(w,1), max(h,1)), Image.LANCZOS)
+        self.bg_img = ImageTk.PhotoImage(img)
+        self.bg_label.config(image=self.bg_img)
 
     def tkraise(self, above=None):
         self.tc.config(text=self.controller.frames["DoctorFrame"].patient_var.get())
@@ -802,20 +1088,21 @@ class EgzersizOnerFrame(tk.Frame):
             # Öneri hesapla
             exercise = None
             if seviye is not None:
+                # Bu fonksiyonu kendi projenle birleştir!
                 _, exercise = get_recommendation(seviye, semptoms)
 
-            # Bilgilendirme yazısını güncelle
             if exercise:
-                self.info_label.config(text=f"Sistem tarafından {exercise} öneriliyor: ")
+                self.info_label.config(
+                    text=f"Sistem tarafından {exercise} öneriliyor.",
+                    font=("Segoe UI", 11, "bold"),
+                    fg="#8B5E3C",
+                    anchor="center",
+                    justify="center"
+                )
             else:
-                self.info_label.config(text="")
+                self.info_label.config(text="", font=("Segoe UI", 11, "italic"), fg="#595959", anchor="center", justify="center")
 
-            # Menüye ekle
-            menu = self.egz_menu["menu"]
-            menu.delete(0, "end")
-            for val in all_exercises:
-                menu.add_command(label=val, command=lambda v=val: self.egz_var.set(v))
-
+            self.egz_menu['values'] = all_exercises
             # Varsayılan seçim
             if exercise in all_exercises:
                 self.egz_var.set(exercise)
@@ -834,8 +1121,7 @@ class EgzersizOnerFrame(tk.Frame):
         egz_tur = self.egz_var.get()
 
         try:
-            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S")\
-                       .replace(tzinfo=ZoneInfo("Europe/Istanbul"))
+            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S")
             tr = dt.strftime("%Y-%m-%d %H:%M:%S")
 
             conn = mysql.connector.connect(**DB_CONFIG)
@@ -860,6 +1146,7 @@ class EgzersizOnerFrame(tk.Frame):
             messagebox.showerror("Geçersiz Tarih", "Lütfen DD.MM.YYYY HH:MM:SS formatında tarih girin.")
         except Exception as e:
             messagebox.showerror("Hata", e)
+
 # -----------------------------------------------------
 # Doktor için Diyet Planı
 # -----------------------------------------------------
@@ -868,40 +1155,99 @@ class DiyetPlanFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        bg = tk.Label(self, image=controller.bg_image)
-        bg.place(relx=0, rely=0, relwidth=1, relheight=1)
+        # BACKGROUND PNG
+        bg_path = os.path.join(os.path.dirname(__file__), "background.png")
+        self.bg_img_raw = Image.open(bg_path)
+        self.bg_img = None
+        self.bg_label = tk.Label(self)
+        self.bg_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.bg_label.lower()
+        self.bind("<Configure>", self._resize_bg)
 
-        tk.Label(self, text="Doktor — Diyet Planı",
-                 font=("Arial", 16, "bold"), bg="white").pack(pady=10)
+        # Kart kutusu
+        card = tk.Frame(self, bg="#eaf6fb", bd=0, relief="flat", padx=48, pady=28)
+        card.place(relx=0.5, rely=0.2, anchor="n")
 
-        frm = tk.Frame(self, bg="white")
-        frm.pack(pady=5)
+        # Başlık (açık kahve bar)
+        header_frame = tk.Frame(card, bg="#ffe0b2")
+        header_frame.pack(fill="x", pady=(0, 22))
+        tk.Label(
+            header_frame,
+            text="Doktor — Diyet Planı",
+            font=("Arial", 24, "bold"),
+            bg="#ffe0b2",
+            fg="#232946",
+            pady=10
+        ).pack(padx=20, fill="x")
 
-        tk.Label(frm, text="Hasta TC:", bg="white")\
-            .grid(row=0, column=0, sticky="e", padx=5, pady=4)
-        self.tc = tk.Label(frm, text="", bg="white")
-        self.tc.grid(row=0, column=1, sticky="w", pady=4)
+        # FORM grid ile hizalı
+        frm = tk.Frame(card, bg="#eaf6fb")
+        frm.pack(pady=(6, 0), padx=12)
 
-        tk.Label(frm, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="white")\
-            .grid(row=1, column=0, sticky="e", padx=5, pady=4)
-        self.tarih = tk.Entry(frm, font=("Arial", 12), width=25)
-        self.tarih.grid(row=1, column=1, pady=4)
+        # Satır 1: Hasta TC
+        tk.Label(frm, text="Hasta TC:", bg="#eaf6fb", font=("Segoe UI", 12, "bold"),
+                 width=24, anchor="e").grid(row=0, column=0, sticky="e", pady=9, padx=(0, 8))
+        self.tc = tk.Label(frm, text="", bg="#eaf6fb", font=("Segoe UI", 12), anchor="w")
+        self.tc.grid(row=0, column=1, sticky="w", pady=9)
+
+        ttk.Separator(frm, orient="horizontal").grid(row=1, column=0, columnspan=2, sticky="ew", padx=6)
+
+        # Satır 2: Tarih/Saat
+        tk.Label(frm, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="#eaf6fb",
+                 font=("Segoe UI", 12, "bold"), width=34, anchor="e")\
+            .grid(row=2, column=0, sticky="e", pady=9, padx=(0,8))
+        self.tarih = tk.Entry(frm, width=28, font=("Segoe UI", 12))
+        self.tarih.grid(row=2, column=1, sticky="w", pady=9)
         self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 
-        # Bilgilendirme yazısı başlangıçta boş
-        self.info_label = tk.Label(frm, text="", font=("Arial", 10), bg="white")
-        self.info_label.grid(row=2, column=0, columnspan=2, pady=(10, 0))
+        ttk.Separator(frm, orient="horizontal").grid(row=3, column=0, columnspan=2, sticky="ew", padx=6)
 
-        tk.Label(frm, text="Diyet Türü:", bg="white")\
-            .grid(row=3, column=0, sticky="e", padx=5, pady=4)
+        # Satır 3: Bilgilendirme
+        self.info_label = tk.Label(
+            frm,
+            text="",
+            font=("Segoe UI", 11, "italic"),
+            bg="#eaf6fb",
+            fg="#595959",
+            anchor="center",       # ortalamak için
+            justify="center"       # birden fazla satır varsa ortala
+        )
+        self.info_label.grid(row=4, column=0, columnspan=2, pady=(7, 0), sticky="ew")
+
+        # Satır 4: Diyet Türü
+        tk.Label(frm, text="Diyet Türü:", bg="#eaf6fb", font=("Segoe UI", 12, "bold"),
+                 width=24, anchor="e").grid(row=5, column=0, sticky="e", pady=9, padx=(0, 8))
         self.diyet_var = tk.StringVar()
-        self.diyet_menu = tk.OptionMenu(frm, self.diyet_var, "")
-        self.diyet_menu.grid(row=3, column=1, pady=4, sticky="w")
+        self.diyet_menu = ttk.Combobox(frm, textvariable=self.diyet_var, font=("Segoe UI", 12), state="readonly", width=26)
+        self.diyet_menu.grid(row=5, column=1, sticky="w", pady=9)
 
-        btnf = tk.Frame(self, bg="white")
-        btnf.pack(pady=15)
-        tk.Button(btnf, text="Kaydet", width=12, command=self.save).pack(side="left", padx=5)
-        tk.Button(btnf, text="Geri", width=12, command=controller.go_back).pack(side="right", padx=5)
+        # Modern buton stili
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 12, "bold"),
+            padding=9,
+            background="#fff",
+            foreground="#232946",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#232946')]
+        )
+
+        btnf = tk.Frame(card, bg="#eaf6fb")
+        btnf.pack(pady=20)
+        ttk.Button(btnf, text="Kaydet", width=15,
+                   style="Modern.TButton", command=self.save).pack(side="left", padx=10)
+        ttk.Button(btnf, text="Geri", width=15,
+                   style="Modern.TButton", command=controller.go_back).pack(side="right", padx=10)
+
+    def _resize_bg(self, event):
+        w, h = event.width, event.height
+        img = self.bg_img_raw.resize((max(w,1), max(h,1)), Image.LANCZOS)
+        self.bg_img = ImageTk.PhotoImage(img)
+        self.bg_label.config(image=self.bg_img)
 
     def tkraise(self, above=None):
         self.tc.config(text=self.controller.frames["DoctorFrame"].patient_var.get())
@@ -943,21 +1289,22 @@ class DiyetPlanFrame(tk.Frame):
             # Öneri hesapla
             diet = None
             if seviye is not None:
+                # Kendi fonksiyonunla birleştir!
                 diet, _ = get_recommendation(seviye, semptoms)
 
-            # Bilgilendirme yazısını güncelle
             if diet:
-                self.info_label.config(text=f"Sistem tarafından {diet} öneriliyor.")
+                self.info_label.config(
+                    text=f"Sistem tarafından {diet} öneriliyor.",
+                    font=("Segoe UI", 11, "bold"),
+                    fg="#8B5E3C",
+                    anchor="center",
+                    justify="center"
+                )
             else:
-                self.info_label.config(text="")
+                self.info_label.config(text="", font=("Segoe UI", 11, "italic"), fg="#595959", anchor="center", justify="center")
 
-            # Menüye ekle
-            menu = self.diyet_menu["menu"]
-            menu.delete(0, "end")
-            for val in all_diets:
-                menu.add_command(label=val, command=lambda v=val: self.diyet_var.set(v))
 
-            # Varsayılan seçim
+            self.diyet_menu['values'] = all_diets
             if diet in all_diets:
                 self.diyet_var.set(diet)
             elif all_diets:
@@ -975,8 +1322,7 @@ class DiyetPlanFrame(tk.Frame):
         diyet = self.diyet_var.get()
 
         try:
-            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S")\
-                       .replace(tzinfo=ZoneInfo("Europe/Istanbul"))
+            dt = datetime.strptime(tr_input, "%d.%m.%Y %H:%M:%S")
             tr = dt.strftime("%Y-%m-%d %H:%M:%S")
 
             conn = mysql.connector.connect(**DB_CONFIG)
@@ -1003,6 +1349,7 @@ class DiyetPlanFrame(tk.Frame):
             messagebox.showerror("Hata", e)
 
 
+
 # -----------------------------------------------------
 # Doktor için Veri Görüntüleme
 # -----------------------------------------------------
@@ -1010,45 +1357,154 @@ class DataViewFrame(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
-        bg = tk.Label(self, image=controller.bg_image)
-        bg.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-        tk.Label(self, text="Doktor — Veri Görüntüle",
-                 font=("Arial",16,"bold"), bg="white").pack(pady=10)
+        # BACKGROUND PNG
+        bg_path = os.path.join(os.path.dirname(__file__), "background.png")
+        self.bg_img_raw = Image.open(bg_path)
+        self.bg_img = None
+        self.bg_label = tk.Label(self)
+        self.bg_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.bg_label.lower()
+        self.bind("<Configure>", self._resize_bg)
 
-        frm = tk.Frame(self, bg="white"); frm.pack(pady=5)
-        tk.Label(frm, text="Tablo Seçin:", bg="white").grid(row=0,column=0,sticky="e")
+        # Kart kutusu
+        card = tk.Frame(self, bg="#eaf6fb", bd=0, relief="flat", padx=40, pady=24)
+        card.pack(pady=28)
+
+        # Başlık
+        tk.Label(
+            card,
+            text="Doktor — Veri Görüntüle",
+            font=("Arial", 20, "bold"),
+            bg="#eaf6fb",
+            fg="#232946",
+        ).pack(pady=(0, 16), padx=8)
+
+        # Form kutusu (tablo seçimi)
+        frm = tk.Frame(card, bg="#eaf6fb")
+        frm.pack(pady=8, padx=8)
+        tk.Label(frm, text="Tablo Seçin:", font=("Segoe UI", 12, "bold"),
+                 bg="#eaf6fb", anchor="e", width=16).grid(row=0, column=0, padx=(0,10), pady=3)
         self.tbl_var = tk.StringVar(value="tbl_olcum")
-        opts = ['tbl_olcum','tbl_semptom','tbl_egzersiz_oneri','tbl_diyet_plani']
-        tk.OptionMenu(frm, self.tbl_var, *opts).grid(row=0,column=1,pady=2)
+        opts = ['tbl_olcum', 'tbl_semptom', 'tbl_egzersiz_oneri', 'tbl_diyet_plani']
+        self.tbl_menu = ttk.Combobox(frm, textvariable=self.tbl_var, values=opts,
+                                     font=("Segoe UI", 12), state="readonly", width=22)
+        self.tbl_menu.grid(row=0, column=1, pady=3, sticky="w")
 
-        bf = tk.Frame(self, bg="white"); bf.pack(pady=10)
-        tk.Button(bf, text="Göster", command=self.show_data).pack(side="left", padx=5)
-        tk.Button(bf, text="Geri",    command=controller.go_back).pack(side="right", padx=5)
+        # Modern ttk butonlar
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=7,
+            background="#fff",
+            foreground="#232946",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#232946')]
+        )
 
-        self.text = tk.Text(self, width=80, height=20)
-        self.text.pack(pady=10)
+        bf = tk.Frame(card, bg="#eaf6fb")
+        bf.pack(pady=14)
+        ttk.Button(
+            bf, text="Göster",
+            style="Modern.TButton",
+            command=self.show_data,
+            width=14
+        ).pack(side="left", padx=8)
+        ttk.Button(
+            bf, text="Geri",
+            style="Modern.TButton",
+            command=controller.go_back,
+            width=14
+        ).pack(side="right", padx=8)
+
+        self.tree = None
+        self.tree_scroll = None
+
+    def _resize_bg(self, event):
+        w, h = event.width, event.height
+        img = self.bg_img_raw.resize((max(w, 1), max(h, 1)), Image.LANCZOS)
+        self.bg_img = ImageTk.PhotoImage(img)
+        self.bg_label.config(image=self.bg_img)
 
     def show_data(self):
         tbl = self.tbl_var.get()
-        tc  = self.controller.frames["DoctorFrame"].patient_var.get()
+        tc = self.controller.frames["DoctorFrame"].patient_var.get()
+
+        if self.tree:
+            self.tree.destroy()
+            self.tree_scroll.destroy()
+
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
-            cur  = conn.cursor()
-            cur.execute(f"SELECT * FROM {tbl} WHERE hasta_tc=%s ORDER BY tarih_saat DESC LIMIT 20",(tc,))
-            rows = cur.fetchall()
-            cols = [d[0] for d in cur.description]
-            cur.close(); conn.close()
+            cur = conn.cursor()
 
-            self.text.delete("1.0","end")
-            self.text.insert("end", "\t".join(cols)+"\n")
-            self.text.insert("end", "-"*60+"\n")
-            for r in rows:
-                self.text.insert("end"," | ".join(str(x) for x in r)+"\n")
+            # Dinamik sorgu, tarih_saat her zaman en solda
+            if tbl == "tbl_semptom":
+                query = """
+                    SELECT ts.tarih_saat, st.tur AS 'Semptom İsmi', ts.aciklama
+                    FROM tbl_semptom ts
+                    LEFT JOIN semptom_turleri st ON ts.semptom_tur_id = st.id
+                    WHERE ts.hasta_tc=%s
+                    ORDER BY ts.tarih_saat DESC LIMIT 20
+                """
+                columns = ["Tarih Saat", "Semptom İsmi", "Açıklama"]
+            elif tbl == "tbl_egzersiz_oneri":
+                query = """
+                    SELECT te.tarih_saat, et.tur AS 'Egzersiz İsmi'
+                    FROM tbl_egzersiz_oneri te
+                    LEFT JOIN egzersiz_turleri et ON te.egzersiz_tur_id = et.id
+                    WHERE te.hasta_tc=%s
+                    ORDER BY te.tarih_saat DESC LIMIT 20
+                """
+                columns = ["Tarih Saat", "Egzersiz İsmi"]
+            elif tbl == "tbl_diyet_plani":
+                query = """
+                    SELECT td.tarih_saat, dt.tur AS 'Diyet İsmi'
+                    FROM tbl_diyet_plani td
+                    LEFT JOIN diyet_turleri dt ON td.diyet_tur_id = dt.id
+                    WHERE td.hasta_tc=%s
+                    ORDER BY td.tarih_saat DESC LIMIT 20
+                """
+                columns = ["Tarih Saat", "Diyet İsmi"]
+            else:  # tbl_olcum
+                query = f"SELECT tarih_saat AS 'Tarih Saat', seviye_mgdl AS 'Seviye (mg/dl)', tur AS 'Ölçüm Türü' FROM {tbl} WHERE hasta_tc=%s ORDER BY tarih_saat DESC LIMIT 20"
+                columns = ["Tarih Saat", "Seviye (mg/dl)", "Ölçüm Türü"]
+
+            cur.execute(query, (tc,))
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            self.setup_treeview(columns, rows)
 
         except Exception as e:
-            messagebox.showerror("Hata", e)
+            messagebox.showerror("Hata", str(e))
 
+    def setup_treeview(self, columns, rows):
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("Treeview.Heading", font=("Arial", 11, "bold"))
+        style.configure("Treeview", font=("Arial", 10), rowheight=24)
+        style.map('Treeview', background=[('selected', '#ace3fc')])
+        style.configure("evenrow", background="white")
+        style.configure("oddrow", background="#e2ecf7")
+
+        self.tree_scroll = tk.Scrollbar(self)
+        self.tree_scroll.pack(side=tk.RIGHT, fill=tk.Y, pady=10)
+
+        self.tree = ttk.Treeview(self, columns=columns, show="headings", yscrollcommand=self.tree_scroll.set, selectmode="browse")
+        for col in columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, anchor="center", width=160)
+        for i, row in enumerate(rows):
+            tag = "evenrow" if i % 2 == 0 else "oddrow"
+            self.tree.insert("", "end", values=row, tags=(tag,))
+        self.tree.pack(pady=10, padx=10, fill="both", expand=True)
+        self.tree_scroll.config(command=self.tree.yview)
 # -----------------------------------------------------
 # Hasta Paneli
 # -----------------------------------------------------
