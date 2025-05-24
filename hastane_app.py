@@ -257,24 +257,42 @@ class LoginFrame(tk.Frame):
         bg = tk.Label(self, image=controller.bg_image)
         bg.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-        # Giriş formu
-        frm = tk.Frame(self, bg="white", bd=2, relief="ridge")
-        frm.place(relx=0.5, rely=0.5, anchor="center")
+        # Form kartı
+        card = tk.Frame(self, bg="#eaf6fb", bd=2, relief="flat")
+        card.place(relx=0.5, rely=0.45, anchor="center")
 
-        tk.Label(frm, text="TC Kimlik No:", bg="white", font=("Arial",12))\
-            .grid(row=0, column=0, sticky="e", pady=5, padx=5)
-        self.tc_entry = tk.Entry(frm, font=("Arial",12), width=30)
-        self.tc_entry.grid(row=0, column=1, pady=5, padx=5)
+        # Başlık
+        tk.Label(
+            card, text="Giriş Yap", 
+            bg="#eaf6fb", fg="#242424",
+            font=("Segoe UI", 20, "bold")
+        ).grid(row=0, column=0, columnspan=2, pady=(24, 16), padx=36)
 
-        tk.Label(frm, text="Şifre:", bg="white", font=("Arial",12))\
-            .grid(row=1, column=0, sticky="e", pady=5, padx=5)
-        self.pw_entry = tk.Entry(frm, font=("Arial",12), width=30, show="*")
-        self.pw_entry.grid(row=1, column=1, pady=5, padx=5)
+        # TC Kimlik No
+        tk.Label(card, text="TC Kimlik No:", bg="#eaf6fb", font=("Segoe UI", 13, "bold"), anchor="e", width=14)\
+            .grid(row=1, column=0, sticky="e", pady=10, padx=(18,4))
+        self.tc_entry = tk.Entry(card, font=("Segoe UI", 13), width=25)
+        self.tc_entry.grid(row=1, column=1, pady=10, padx=(4,18))
 
-        btnf = tk.Frame(frm, bg="white")
-        btnf.grid(row=2, column=0, columnspan=2, pady=10)
-        tk.Button(btnf, text="Giriş Yap", width=12, command=self.login).pack(side="left", padx=5)
-        tk.Button(btnf, text="Çıkış", width=12, command=controller.destroy).pack(side="right", padx=5)
+        # Şifre
+        tk.Label(card, text="Şifre:", bg="#eaf6fb", font=("Segoe UI", 13, "bold"), anchor="e", width=14)\
+            .grid(row=2, column=0, sticky="e", pady=10, padx=(18,4))
+        self.pw_entry = tk.Entry(card, font=("Segoe UI", 13), width=25, show="*")
+        self.pw_entry.grid(row=2, column=1, pady=10, padx=(4,18))
+
+        # Butonlar
+        btnf = tk.Frame(card, bg="#eaf6fb")
+        btnf.grid(row=3, column=0, columnspan=2, pady=(18, 16))
+        ttk.Button(
+            btnf, text="Giriş Yap", width=15, style="Modern.TButton", command=self.login
+        ).pack(side="left", padx=8)
+        ttk.Button(
+            btnf, text="Çıkış", width=15, style="Modern.TButton", command=controller.destroy
+        ).pack(side="left", padx=8)
+
+        # Görsel odak ve yumuşak kenar için biraz padding verildi
+        for child in card.winfo_children():
+            child.grid_configure(pady=6)
 
     def login(self):
         tc = self.tc_entry.get().strip()
@@ -300,7 +318,6 @@ class LoginFrame(tk.Frame):
             row = cur.fetchone()
             if row:
                 stored_hash = row[0]
-                # Eğer hash string olarak geldiyse bytes'a çevir
                 if isinstance(stored_hash, str):
                     stored_hash = stored_hash.encode('utf-8')
                 if bcrypt.checkpw(pw.encode('utf-8'), stored_hash):
@@ -333,6 +350,7 @@ class LoginFrame(tk.Frame):
             messagebox.showerror("Giriş Hatası", "TC veya şifre hatalı.")
         except mysql.connector.Error as e:
             messagebox.showerror("DB Hatası", e)
+
 
 # -----------------------------------------------------
 # Doktor Paneli
@@ -1513,21 +1531,29 @@ class PatientFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        # Arka plan
-        bg = tk.Label(self, image=controller.bg_image)
-        bg.place(relx=0, rely=0, relwidth=1, relheight=1)
+        # --- BACKGROUND PNG ---
+        bg_path = "background.png"
+        self.bg_img_raw = Image.open(bg_path)
+        self.bg_img = None
+        self.bg_label = tk.Label(self)
+        self.bg_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.bg_label.lower()
+        self.bind("<Configure>", self._resize_bg)
 
-        # Üst çerçeve: fotoğraf + başlık
-        top_frame = tk.Frame(self, bg="white")
-        top_frame.pack(pady=15)
+        # Üst Card: Fotoğraf + Başlık
+        top_card = tk.Frame(self, bg="#f4f6fb")
+        top_card.pack(pady=28)
 
-        # Hasta fotoğrafı (boş label, sonra doldurulacak)
-        self.photo_label = tk.Label(top_frame, bg="white")
-        self.photo_label.pack(side="left", padx=10)
+        self.photo_label = tk.Label(top_card, bg="#f4f6fb", bd=0)
+        self.photo_label.pack(side="left", padx=24)
 
-        # Başlık (isim)
-        self.header = tk.Label(top_frame, font=("Arial", 18, "bold"), bg="white")
-        self.header.pack(side="left", padx=10)
+        self.header = tk.Label(
+            top_card,
+            font=("Arial", 21, "bold"),
+            bg="#f4f6fb",
+            fg="#252a34"
+        )
+        self.header.pack(side="left", padx=(0, 18))
 
         # Açıklama
         info = (
@@ -1537,14 +1563,28 @@ class PatientFrame(tk.Frame):
         tk.Label(
             self,
             text=info,
-            wraplength=700,
+            wraplength=680,
             font=("Arial", 12),
-            bg="white"
-        ).pack(pady=10)
+            bg="#f4f6fb"
+        ).pack(pady=8)
 
-        # İşlem butonları
-        btn_container = tk.Frame(self, bg="white")
-        btn_container.pack(pady=20)
+        # Modern butonlar card
+        btn_card = tk.Frame(self, bg="#f4f6fb")
+        btn_card.pack(pady=36)
+
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=12,
+            background="#fff",
+            foreground="#222e44",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#222e44')]
+        )
 
         buttons = [
             ("Kan Şekeri Girişi",  "OlcumEntryFrame"),
@@ -1554,41 +1594,54 @@ class PatientFrame(tk.Frame):
             ("Günlük Ortalama",    "PatientGraphFrame"),
             ("İnsülin Takip",      "InsulinViewFrame"),
         ]
-        for (label, frame_name) in buttons:
-            tk.Button(
-                btn_container,
+        for idx, (label, frame_name) in enumerate(buttons):
+            row, col = divmod(idx, 3)
+            btn = ttk.Button(
+                btn_card,
                 text=label,
-                width=16,
+                style="Modern.TButton",
+                width=18,
                 command=lambda f=frame_name: controller.show_frame(f)
-            ).pack(side="left", padx=5)
+            )
+            btn.grid(row=row, column=col, padx=18, pady=14, sticky="ew")
 
         # Alt navigasyon
-        nav = tk.Frame(self, bg="white")
-        nav.pack(side="bottom", fill="x", pady=10)
-        tk.Button(nav, text="Geri", command=controller.go_back).pack(side="left", padx=20)
-        tk.Button(nav, text="Çıkış", command=controller.destroy).pack(side="right", padx=20)
+        nav = tk.Frame(self, bg="#f4f6fb")
+        nav.pack(side="bottom", fill="x", pady=16)
+        ttk.Button(
+            nav, text="Geri",
+            style="Modern.TButton",
+            command=controller.go_back
+        ).pack(side="left", padx=35)
+        ttk.Button(
+            nav, text="Çıkış",
+            style="Modern.TButton",
+            command=controller.destroy
+        ).pack(side="right", padx=35)
+
+    def _resize_bg(self, event):
+        w, h = event.width, event.height
+        img = self.bg_img_raw.resize((max(w,1), max(h,1)), Image.LANCZOS)
+        self.bg_img = ImageTk.PhotoImage(img)
+        self.bg_label.config(image=self.bg_img)
 
     def tkraise(self, above=None):
-        # Başlığı güncelle
         self.header.config(text=f"{self.controller.current_user_name}, hoşgeldiniz.")
 
-        # Fotoğraf yükle
         patient_tc = self.controller.current_user_tc  # giriş yapan hastanın tc
         photo_path = self.get_patient_photo_path(patient_tc)
         if photo_path:
             try:
-                img = Image.open(photo_path)
-                img = img.resize((80, 80))  # Fotoğraf boyutu ayarla
+                img = Image.open(photo_path).resize((86, 86))
                 photo = ImageTk.PhotoImage(img)
                 self.photo_label.config(image=photo)
-                self.photo_label.image = photo  # Referans tut
+                self.photo_label.image = photo
             except Exception as e:
                 print(f"Fotoğraf yüklenemedi: {e}")
 
         super().tkraise(above)
 
     def get_patient_photo_path(self, tc):
-        # MySQL'den hastanın fotoğraf yolunu çek
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor()
@@ -1601,6 +1654,7 @@ class PatientFrame(tk.Frame):
             return None
 
 
+
 # -----------------------------------------------------
 # Hasta — Kan Şekeri Girişi
 # -----------------------------------------------------
@@ -1609,60 +1663,79 @@ class OlcumEntryFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        # Arka plan
+        # --- BACKGROUND PNG ---
         bg = tk.Label(self, image=controller.bg_image)
         bg.place(relx=0, rely=0, relwidth=1, relheight=1)
 
+        # Modern dış card
+        card = tk.Frame(self, bg="#eaf6fb", bd=0)
+        card.pack(pady=38, padx=10, anchor="n")
+
         # Başlık
-        tk.Label(self, text="Kan Şekeri Girişi",
+        tk.Label(card, text="Kan Şekeri Girişi",
                  font=("Arial", 18, "bold"),
-                 bg="white").pack(pady=(30, 10))
+                 bg="#eaf6fb", fg="#252a34").pack(pady=(10, 18))
 
-        # Form çerçevesi
-        form = tk.Frame(self, bg="white", bd=1, relief="solid")
-        form.pack(pady=10, padx=20)
+        # --- FORM Alanı ---
+        form = tk.Frame(card, bg="#eaf6fb")
+        form.pack(padx=14, pady=6)
 
-        # Grid ile hizalanmış form satırları
-        labels = ["Tarih/Saat (DD.MM.YYYY HH:MM:SS):", "Seviye (mg/dL):", "Tür:"]
-        for i, text in enumerate(labels):
-            tk.Label(form, text=text, bg="white",
-                     font=("Arial", 12)).grid(row=i, column=0,
-                                              sticky="e", padx=10, pady=8)
-
-        # Girdi alanları
-        self.tarih = tk.Entry(form, font=("Arial", 12), width=25)
-        self.tarih.grid(row=0, column=1, padx=10, pady=8)
+        # Tarih/Saat
+        tk.Label(form, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):",
+                 bg="#eaf6fb", font=("Segoe UI", 12, "bold"),
+                 anchor="e", width=27).grid(row=0, column=0, padx=(0, 8), pady=10, sticky="e")
+        self.tarih = ttk.Entry(form, font=("Segoe UI", 12), width=28)
+        self.tarih.grid(row=0, column=1, padx=(0, 8), pady=10, sticky="w")
         self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
+        ttk.Button(form, text="Gün Sonu", style="Accent.TButton", command=self.end_of_day)\
+            .grid(row=0, column=2, padx=(0, 8), pady=10, sticky="w")
 
-        gs_btn = tk.Button(form, text="Gün Sonu", command=self.end_of_day)
-        gs_btn.grid(row=0, column=2, padx=10, pady=8)
+        # Seviye
+        tk.Label(form, text="Seviye (mg/dL):",
+                 bg="#eaf6fb", font=("Segoe UI", 12, "bold"),
+                 anchor="e", width=27).grid(row=1, column=0, padx=(0, 8), pady=10, sticky="e")
+        self.seviye = ttk.Entry(form, font=("Segoe UI", 12), width=28)
+        self.seviye.grid(row=1, column=1, padx=(0, 8), pady=10, sticky="w")
 
-        self.seviye = tk.Entry(form, font=("Arial", 12), width=25)
-        self.seviye.grid(row=1, column=1, padx=10, pady=8)
-
+        # Tür
+        tk.Label(form, text="Tür:",
+                 bg="#eaf6fb", font=("Segoe UI", 12, "bold"),
+                 anchor="e", width=27).grid(row=2, column=0, padx=(0, 8), pady=10, sticky="e")
         self.tur_var = tk.StringVar(value="Sabah")
-        tk.OptionMenu(form, self.tur_var,
-                      *['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Gece']) \
-            .grid(row=2, column=1, padx=10, pady=8, sticky="w")
+        ttk.OptionMenu(form, self.tur_var, "Sabah", 'Sabah', 'Öğle', 'İkindi', 'Akşam', 'Gece')\
+            .grid(row=2, column=1, padx=(0, 8), pady=10, sticky="w")
 
-        # Butonlar
-        btn_frame = tk.Frame(self, bg="white")
-        btn_frame.pack(pady=(20, 10))
-        tk.Button(btn_frame, text="Kaydet", width=12,
-                  command=self.save).pack(side="left", padx=5)
-        tk.Button(btn_frame, text="Geri", width=12,
-                  command=controller.go_back).pack(side="left", padx=5)
+        # --- Butonlar modern şekilde ---
+        btnf = tk.Frame(card, bg="#eaf6fb")
+        btnf.pack(pady=(20, 8))
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=12,
+            background="#fff",
+            foreground="#222e44",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#222e44')]
+        )
+        ttk.Button(btnf, text="Kaydet", width=14, style="Modern.TButton",
+                   command=self.save).pack(side="left", padx=16)
+        ttk.Button(btnf, text="Geri", width=14, style="Modern.TButton",
+                   command=controller.go_back).pack(side="left", padx=16)
 
         # Mesajları gösterecek alan
         self.msg_area = tk.Message(
-            self,
+            card,
             text="",
-            width=600,
-            bg="white",
-            font=("Arial", 12),
+            width=520,
+            bg="#eaf6fb",
+            font=("Segoe UI", 11),
             justify="left"
         )
-        self.msg_area.pack(pady=(10, 0), padx=20)
+        self.msg_area.pack(pady=(12, 4), padx=10)
 
     def save(self):
         # Mesaj alanını temizle
@@ -1885,34 +1958,47 @@ class EgzersizTakipFrame(tk.Frame):
 
         # Başlık
         tk.Label(self, text="Egzersiz Uyum Takibi",
-                 font=("Arial", 18, "bold"), bg="white")\
-          .pack(pady=(15, 5))
+                 font=("Segoe UI", 19, "bold"), bg="white", fg="#252a34")\
+          .pack(pady=(20, 8))
+
+        # Doktor önerisi en üstte
+        self.doktor_onerisi_label = tk.Label(self, text="", font=("Segoe UI", 12, "bold"), bg="white", fg="#a05710")
+        self.doktor_onerisi_label.pack(pady=(0, 10))
 
         # Form
         form = tk.Frame(self, bg="white")
         form.pack(pady=5)
 
-        tk.Label(form, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="white")\
-            .grid(row=0, column=0, sticky="e", padx=5)
-        self.tarih = tk.Entry(form, width=25)
-        self.tarih.grid(row=0, column=1, pady=2)
-        # Başlangıçta otomatik şimdi ile doldur
+        tk.Label(form, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="white", font=("Segoe UI", 12, "bold"))\
+            .grid(row=0, column=0, sticky="e", padx=5, pady=6)
+        self.tarih = tk.Entry(form, width=28, font=("Segoe UI", 12))
+        self.tarih.grid(row=0, column=1, pady=6)
         self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 
         self.yap_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(form, text="Yapıldı", variable=self.yap_var, bg="white")\
-            .grid(row=1, column=1, sticky="w")
+        tk.Checkbutton(form, text="Yapıldı", variable=self.yap_var, bg="white", font=("Segoe UI", 11)).grid(row=1, column=1, sticky="w", pady=2)
 
-        # Butonlar
+        # Modern butonlar
         btnf = tk.Frame(self, bg="white")
-        btnf.pack(pady=10)
-        tk.Button(btnf, text="Kaydet", command=self.save).pack(side="left", padx=5)
-        tk.Button(btnf, text="Geri",   command=controller.go_back).pack(side="right", padx=5)
+        btnf.pack(pady=16)
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=10,
+            background="#fff",
+            foreground="#222e44",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#222e44')]
+        )
+        ttk.Button(btnf, text="Kaydet", style="Modern.TButton", width=14, command=self.save).pack(side="left", padx=12)
+        ttk.Button(btnf, text="Geri", style="Modern.TButton", width=14, command=controller.go_back).pack(side="left", padx=12)
 
-        # Doktor önerisi ve uyum özeti
-        self.doktor_onerisi_label = tk.Label(self, text="", font=("Arial", 12), bg="white")
-        self.doktor_onerisi_label.pack(pady=(10, 0))
-        self.summary_label        = tk.Label(self, text="", font=("Arial", 12), bg="white")
+        # Uyum özeti
+        self.summary_label = tk.Label(self, text="", font=("Segoe UI", 12), bg="white", fg="#252a34")
         self.summary_label.pack(pady=(2, 10))
 
         # Uyum geçmişi tablosu
@@ -2050,35 +2136,47 @@ class DiyetTakipFrame(tk.Frame):
 
         # Başlık
         tk.Label(self, text="Diyet Uyum Takibi",
-                 font=("Arial", 18, "bold"), bg="white")\
-          .pack(pady=(15, 5))
+                 font=("Segoe UI", 19, "bold"), bg="white", fg="#252a34")\
+          .pack(pady=(20, 8))
 
         # Doktor önerisi
-        self.doktor_onerisi_label = tk.Label(self, text="", font=("Arial", 12), bg="white")
+        self.doktor_onerisi_label = tk.Label(self, text="", font=("Segoe UI", 12, "bold"), bg="white", fg="#a05710")
         self.doktor_onerisi_label.pack(pady=(0, 10))
 
         # Form
         form = tk.Frame(self, bg="white")
         form.pack(pady=5)
 
-        tk.Label(form, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="white")\
-          .grid(row=0, column=0, sticky="e", padx=5)
-        self.tarih = tk.Entry(form, width=25)
-        self.tarih.grid(row=0, column=1, pady=2)
+        tk.Label(form, text="Tarih/Saat (DD.MM.YYYY HH:MM:SS):", bg="white", font=("Segoe UI", 12, "bold"))\
+          .grid(row=0, column=0, sticky="e", padx=5, pady=6)
+        self.tarih = tk.Entry(form, width=28, font=("Segoe UI", 12))
+        self.tarih.grid(row=0, column=1, pady=6)
         self.tarih.insert(0, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 
         self.uyg_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(form, text="Uygulandı", variable=self.uyg_var, bg="white")\
-          .grid(row=1, column=1, sticky="w")
+        tk.Checkbutton(form, text="Uygulandı", variable=self.uyg_var, bg="white", font=("Segoe UI", 11)).grid(row=1, column=1, sticky="w", pady=2)
 
-        # Butonlar
+        # Modern butonlar
         btnf = tk.Frame(self, bg="white")
-        btnf.pack(pady=10)
-        tk.Button(btnf, text="Kaydet", command=self.save).pack(side="left", padx=5)
-        tk.Button(btnf, text="Geri",   command=controller.go_back).pack(side="right", padx=5)
+        btnf.pack(pady=16)
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=10,
+            background="#fff",
+            foreground="#222e44",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#222e44')]
+        )
+        ttk.Button(btnf, text="Kaydet", style="Modern.TButton", width=14, command=self.save).pack(side="left", padx=12)
+        ttk.Button(btnf, text="Geri", style="Modern.TButton", width=14, command=controller.go_back).pack(side="left", padx=12)
 
         # Özet ve tablo
-        self.summary_label = tk.Label(self, text="", font=("Arial", 12), bg="white")
+        self.summary_label = tk.Label(self, text="", font=("Segoe UI", 12), bg="white", fg="#252a34")
         self.summary_label.pack(pady=(10,0))
         cols = ("tarih", "durum")
         self.tree = ttk.Treeview(self, columns=cols, show="headings", height=6)
@@ -2210,51 +2308,82 @@ class PatientSymptomEntryFrame(tk.Frame):
         bg.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         # Başlık
-        tk.Label(self, text="Doktor Teşhis Geçmişi",
-                 font=("Arial", 16, "bold"), bg="white").pack(pady=15)
+        tk.Label(
+            self, text="Doktor Teşhis Geçmişi",
+            font=("Segoe UI", 19, "bold"),
+            bg="white", fg="#252a34"
+        ).pack(pady=(28, 14))
 
-        # Scrollable frame yapısı (tüm geçmişi göstermek için)
-        container = tk.Frame(self, bg="white")
-        container.pack(fill="both", expand=True, padx=10, pady=10)
+        # Modern çerçeve
+        card = tk.Frame(self, bg="#f4f6fb", bd=0, relief="groove")
+        card.pack(fill="both", expand=True, padx=30, pady=(0, 10))
 
-        canvas = tk.Canvas(container, bg="white")
-        scrollbar = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
-        self.scrollable_frame = tk.Frame(canvas, bg="white")
-
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
+        # Tablo (Treeview)
+        style = ttk.Style()
+        style.configure(
+            "Modern.Treeview",
+            font=("Segoe UI", 11),
+            rowheight=32,
+            background="#ffffff",
+            fieldbackground="#ffffff",
         )
+        style.configure(
+            "Modern.Treeview.Heading",
+            font=("Segoe UI", 12, "bold"),
+            background="#cfe2f3",
+            foreground="#2d3142"
+        )
+        style.map("Modern.Treeview", background=[('selected', '#e3eeff')])
+        # Alternating renkler
+        style.configure("evenrow", background="#e6f2ff")  # Açık mavi
+        style.configure("oddrow", background="#ffffff")    # Beyaz
 
-        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        self.tree = ttk.Treeview(
+            card, columns=("tarih", "semptom", "aciklama"),
+            show="headings", style="Modern.Treeview", selectmode="none", height=12
+        )
+        self.tree.heading("tarih", text="Tarih/Saat")
+        self.tree.heading("semptom", text="Semptom İsmi")
+        self.tree.heading("aciklama", text="Doktor Açıklaması")
+        self.tree.column("tarih", anchor="center", width=165)
+        self.tree.column("semptom", anchor="center", width=170)
+        self.tree.column("aciklama", anchor="w", width=370, stretch=True)
+        self.tree.pack(fill="both", expand=True, padx=12, pady=(10, 8))
 
         # Geri butonu
-        btnf = tk.Frame(self, bg="white")
-        btnf.pack(pady=10)
-        tk.Button(btnf, text="Geri", command=controller.go_back).pack()
+        btnf = tk.Frame(self, bg="#f4f6fb")
+        btnf.pack(fill="x", padx=36, pady=(4, 14))
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=10,
+            background="#fff",
+            foreground="#222e44",
+            borderwidth=0
+        )
+        style.map("Modern.TButton",
+                  background=[('active', '#e3eeff'), ('!active', '#fff')],
+                  foreground=[('active', '#1d4e89'), ('!active', '#222e44')])
+        ttk.Button(
+            btnf, text="Geri", style="Modern.TButton",
+            width=16, command=controller.go_back
+        ).pack(side="left", padx=4, pady=2)
 
     def tkraise(self, above=None):
-        # Frame her açıldığında tüm teşhis geçmişini getir
         self.show_all_diagnoses()
         super().tkraise(above)
 
     def show_all_diagnoses(self):
-        # Önce eski listeyi temizle
-        for widget in self.scrollable_frame.winfo_children():
-            widget.destroy()
+        # Tabloyu temizle
+        for item in self.tree.get_children():
+            self.tree.delete(item)
 
         try:
             tc = self.controller.current_user_tc
             conn = mysql.connector.connect(**DB_CONFIG)
             cur = conn.cursor()
 
-            # Tüm teşhis kayıtlarını çek (en son en üstte olsun)
+            # Teşhis kayıtlarını çek
             cur.execute("""
                 SELECT s.tarih_saat, t.tur, s.aciklama
                 FROM tbl_semptom s
@@ -2267,27 +2396,32 @@ class PatientSymptomEntryFrame(tk.Frame):
             conn.close()
 
             if results:
-                for idx, (tarih_saat, semptom_ismi, aciklama) in enumerate(results, 1):
-                    info_text = f"{idx}) Doktorunuz {tarih_saat} zamanında {semptom_ismi} belirtisi teşhisi koymuştur."
-                    aciklama_text = f"    Doktorunuzun açıklaması: {aciklama}"
-
-                    tk.Label(self.scrollable_frame, text=info_text, 
-                             font=("Arial", 12), bg="white", anchor="w", justify="left", wraplength=750)\
-                        .pack(anchor="w", pady=(5, 0))
-
-                    tk.Label(self.scrollable_frame, text=aciklama_text,
-                             font=("Arial", 11, "italic"), bg="white", anchor="w", justify="left", wraplength=750)\
-                        .pack(anchor="w", pady=(0, 10))
+                for idx, (tarih_saat, semptom_ismi, aciklama) in enumerate(results):
+                    tag = "evenrow" if idx % 2 == 0 else "oddrow"
+                    self.tree.insert(
+                        "", "end",
+                        values=(
+                            tarih_saat.strftime("%d.%m.%Y %H:%M:%S") if hasattr(tarih_saat, 'strftime') else str(tarih_saat),
+                            semptom_ismi,
+                            aciklama
+                        ),
+                        tags=(tag,)
+                    )
             else:
-                tk.Label(self.scrollable_frame,
-                         text="Doktorunuz tarafından henüz teşhis konmamıştır.",
-                         font=("Arial", 12), bg="white").pack(pady=10)
+                self.tree.insert(
+                    "", "end",
+                    values=("", "Teşhis Yok", "Doktorunuz tarafından henüz teşhis konmamıştır."),
+                    tags=("evenrow",)
+                )
 
         except Exception as e:
-            tk.Label(self.scrollable_frame,
-                     text="Teşhis bilgileri alınamadı.",
-                     font=("Arial", 12), bg="white").pack(pady=10)
+            self.tree.insert(
+                "", "end",
+                values=("", "Hata", "Teşhis bilgileri alınamadı."),
+                tags=("evenrow",)
+            )
             print(f"Hata: {e}")
+
 
 
 class DoctorFilterFrame(tk.Frame):
@@ -2295,41 +2429,77 @@ class DoctorFilterFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        tk.Label(self, text="Doktor — Hastaları Filtrele", font=("Arial",16,"bold")).pack(pady=10)
+        # Arka plan etiketi
+        bg = tk.Label(self, image=controller.bg_image)
+        bg.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-        frm = tk.Frame(self)
-        frm.pack(pady=5)
+        # Ana kart
+        card = tk.Frame(self, bg="#eaf6fb", bd=2, relief="groove")
+        card.pack(pady=50, padx=10)
 
-        # Min / Max kan seviyesi
-        tk.Label(frm, text="Min Seviye (mg/dL):").grid(row=0, column=0, padx=5, pady=2, sticky="e")
-        self.min_entry = tk.Entry(frm, width=12)
-        self.min_entry.grid(row=0, column=1, pady=2, sticky="w")
+        # Başlık
+        tk.Label(card, text="Doktor — Hastaları Filtrele",
+                 font=("Segoe UI", 18, "bold"),
+                 bg="#eaf6fb", fg="#1d2439").pack(pady=(18, 12))
 
-        tk.Label(frm, text="Max Seviye (mg/dL):").grid(row=1, column=0, padx=5, pady=2, sticky="e")
-        self.max_entry = tk.Entry(frm, width=12)
-        self.max_entry.grid(row=1, column=1, pady=2, sticky="w")
+        # Filtre formu
+        frm = tk.Frame(card, bg="#eaf6fb")
+        frm.pack(padx=30, pady=5)
 
-        # Belirti seçimi
-        tk.Label(frm, text="Belirti:").grid(row=2, column=0, padx=5, pady=2, sticky="e")
+        # Min/Max kan seviyesi
+        ttk.Label(frm, text="Min Seviye (mg/dL):", background="#eaf6fb", font=("Segoe UI", 12, "bold"), width=20).grid(row=0, column=0, padx=6, pady=8, sticky="e")
+        self.min_entry = ttk.Entry(frm, width=18, font=("Segoe UI", 12))
+        self.min_entry.grid(row=0, column=1, padx=6, pady=8)
+
+        ttk.Label(frm, text="Max Seviye (mg/dL):", background="#eaf6fb", font=("Segoe UI", 12, "bold"), width=20).grid(row=1, column=0, padx=6, pady=8, sticky="e")
+        self.max_entry = ttk.Entry(frm, width=18, font=("Segoe UI", 12))
+        self.max_entry.grid(row=1, column=1, padx=6, pady=8)
+
+        ttk.Label(frm, text="Belirti:", background="#eaf6fb", font=("Segoe UI", 12, "bold"), width=20).grid(row=2, column=0, padx=6, pady=8, sticky="e")
         self.symptom_var = tk.StringVar(value="")
         symptoms = [""] + self._load_symptoms()
-        self.symptom_menu = tk.OptionMenu(frm, self.symptom_var, *symptoms)
-        self.symptom_menu.config(width=15)
-        self.symptom_menu.grid(row=2, column=1, pady=2, sticky="w")
+        self.symptom_menu = ttk.Combobox(frm, textvariable=self.symptom_var, values=symptoms, state="readonly", width=16, font=("Segoe UI", 12))
+        self.symptom_menu.grid(row=2, column=1, padx=6, pady=8)
 
-        # Filtrele butonu
-        tk.Button(frm, text="Filtrele", command=self.filter).grid(row=3, column=0, columnspan=2, pady=10)
+# ... diğer kodlarınız değişmeden ...
 
-        # Geri butonu
-        tk.Button(self, text="Geri", command=controller.go_back).pack(side="bottom", pady=5)
+        # Butonlar: Filtrele ve Geri yan yana
+        btnf = tk.Frame(frm, bg="#eaf6fb")
+        btnf.grid(row=4, column=0, columnspan=2, pady=18)
+        ttk.Style().configure("Modern.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=8,
+            foreground="#222e44",
+            background="#fff"
+        )
+        ttk.Button(
+            btnf, text="Filtrele",
+            style="Modern.TButton",
+            command=self.filter,
+            width=14
+        ).pack(side="left", padx=18)
+        ttk.Button(
+            btnf, text="Geri",
+            style="Modern.TButton",
+            command=controller.go_back,
+            width=14
+        ).pack(side="left", padx=18)
 
-        # Sonuçları göstermek için Treeview
+
+        # Sonuçlar için Treeview
         cols = ("tc", "isim", "tarih", "tip", "deger")
-        self.tree = ttk.Treeview(self, columns=cols, show="headings", height=15)
+        style = ttk.Style()
+        style.configure("Custom.Treeview.Heading", font=("Segoe UI", 11, "bold"))
+        style.configure("Custom.Treeview", font=("Segoe UI", 11), rowheight=26, borderwidth=0)
+        style.map('Custom.Treeview', background=[('selected', '#ace3fc')])
+
+        self.tree = ttk.Treeview(card, columns=cols, show="headings", height=12, style="Custom.Treeview")
         for c, w in zip(cols, [120, 150, 160, 100, 100]):
             self.tree.heading(c, text=c.upper(), anchor="center")
             self.tree.column(c, anchor="center", width=w)
-        self.tree.pack(fill="both", expand=True, padx=10, pady=10)
+        self.tree.pack(padx=10, pady=(10, 24), fill="both", expand=True)
+
+
 
     def _load_symptoms(self):
         try:
@@ -2443,22 +2613,67 @@ class DoctorGraphFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        # Başlık
-        tk.Label(self, text="Doktor — Grafikler", font=("Arial", 16, "bold"))\
-          .pack(pady=10)
+        # Üst boşluk ve zemin için geniş, sade kart yapı
+        card = tk.Frame(self, bg="#f4f6fb", bd=0, relief="flat")
+        card.pack(pady=40, padx=0, fill="x")
 
-        # Butonlar
-        btnf = tk.Frame(self)
-        btnf.pack(pady=5)
-        tk.Button(btnf, text="Kan Şekeri & Diyet/Egzersiz", command=self.plot_glucose_diet_ex)\
-          .pack(side="left", padx=5)
-        tk.Button(btnf, text="Egzersiz/Diyet Uyum Oranları", command=self.plot_ex_diet)\
-          .pack(side="left", padx=5)
-        tk.Button(self, text="Geri", command=controller.go_back)\
-          .pack(side="bottom", pady=5)
+        # Başlık: sade, modern ve ortalanmış
+        title = tk.Label(
+            card, 
+            text="Doktor — Grafikler", 
+            font=("Segoe UI", 22, "bold"), 
+            bg="#f4f6fb", 
+            fg="#262b37"
+        )
+        title.pack(pady=(18, 32))
 
-        # Canvas placeholder
+        # Modern buton çubuğu, geniş aralıklı ve büyük butonlar
+        btnf = tk.Frame(card, bg="#f4f6fb")
+        btnf.pack(pady=4)
+
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 13, "bold"),
+            padding=18,
+            background="#fff",
+            foreground="#252a34",
+            borderwidth=0,
+            relief="flat"
+        )
+        style.map("Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#252a34')]
+        )
+
+        # Butonlar büyük, geniş ve yazı tamamen görünür
+        ttk.Button(
+            btnf,
+            text="Kan Şekeri & Diyet/Egzersiz",
+            style="Modern.TButton",
+            command=self.plot_glucose_diet_ex,
+            width=28
+        ).pack(side="left", padx=22)
+
+        ttk.Button(
+            btnf,
+            text="Egzersiz/Diyet Uyum Oranları",
+            style="Modern.TButton",
+            command=self.plot_ex_diet,
+            width=28
+        ).pack(side="left", padx=22)
+
+        ttk.Button(
+            btnf,
+            text="Geri",
+            style="Modern.TButton",
+            command=controller.go_back,
+            width=16
+        ).pack(side="left", padx=22)
+
+        # Canvas placeholder (grafik için)
         self.canvas = None
+
 
     def _clear_canvas(self):
         """Önceki grafiği temizle."""
@@ -2590,24 +2805,38 @@ class PatientGraphFrame(tk.Frame):
         self.controller = controller
 
         # Başlık
-        tk.Label(self, text="Günlük Kan Şekeri Değerleri", font=("Arial", 16, "bold")).pack(pady=10)
+        tk.Label(self, text="Günlük Kan Şekeri Değerleri", font=("Segoe UI", 19, "bold"), bg="white", fg="#252a34").pack(pady=18)
 
-        # Seçim ve kontrol butonları
-        btnf = tk.Frame(self)
-        btnf.pack(pady=5)
+        # Modern buton ve seçim alanı çerçevesi
+        btnf = tk.Frame(self, bg="white")
+        btnf.pack(pady=10)
+
+        # Stil tanımı (sadece bir defa tanımlanır)
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=10,
+            background="#fff",
+            foreground="#222e44",
+            borderwidth=2,          # Çerçeve kalınlığı
+            relief="solid" 
+        )
+        style.map("Modern.TButton",
+                  background=[('active', '#e3eeff'), ('!active', '#fff')],
+                  foreground=[('active', '#1d4e89'), ('!active', '#222e44')])
 
         # Tarih seçimi
-        tk.Label(btnf, text="Tarih (GG.AA.YYYY):").pack(side="left", padx=5)
+        tk.Label(btnf, text="Tarih (GG.AA.YYYY):", font=("Segoe UI", 11, "bold"), bg="white", fg="#444").pack(side="left", padx=7)
         self.date_var = tk.StringVar(value=datetime.now().strftime("%d.%m.%Y"))
-        self.date_entry = tk.Entry(btnf, textvariable=self.date_var, width=10)
-        self.date_entry.pack(side="left", padx=5)
-        tk.Button(btnf, text="Tarihe Göre Grafik Göster", command=self.plot_for_selected).pack(side="left", padx=5)
+        self.date_entry = tk.Entry(btnf, textvariable=self.date_var, width=12, font=("Segoe UI", 11))
+        self.date_entry.pack(side="left", padx=7)
 
-        # Tablo görünümü
-        tk.Button(btnf, text="Kayıtlı Ölçümler ve Günlük Ortalamalar", command=self.show_tables).pack(side="left", padx=5)
-        # Yenile ve geri
-        tk.Button(btnf, text="Yenile", command=self.refresh_current).pack(side="left", padx=5)
-        tk.Button(btnf, text="Geri", command=controller.go_back).pack(side="left", padx=5)
+        # Modern butonlar
+        ttk.Button(btnf, text="Tarihe Göre Grafik Göster", style="Modern.TButton", width=22, command=self.plot_for_selected).pack(side="left", padx=7)
+        ttk.Button(btnf, text="Kayıtlı Ölçümler ve Günlük Ortalamalar", style="Modern.TButton", width=28, command=self.show_tables).pack(side="left", padx=7)
+        ttk.Button(btnf, text="Yenile", style="Modern.TButton", width=13, command=self.refresh_current).pack(side="left", padx=7)
+        ttk.Button(btnf, text="Geri", style="Modern.TButton", width=13, command=controller.go_back).pack(side="left", padx=7)
 
         # Grafik ve tablo tutucular
         self.canvas = None
@@ -2764,39 +2993,82 @@ class InsulinViewFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        tk.Label(self, text="İnsülin Takip", font=("Arial", 16, "bold")).pack(pady=10)
+        kahve_bg = "#f6eee3"  # Açık kahve tonu
+        self.configure(bg=kahve_bg)
 
-        frm = tk.Frame(self)
+        # Başlık
+        tk.Label(self, text="İnsülin Takip", font=("Segoe UI", 19, "bold"), bg=kahve_bg, fg="#252a34").pack(pady=18)
+
+        frm = tk.Frame(self, bg=kahve_bg)
         frm.pack(pady=5)
 
+        # Modern buton stili - siyah border
+        style = ttk.Style()
+        style.configure(
+            "ModernBrown.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=10,
+            background="#fff",
+            foreground="#2e1300",
+            borderwidth=2,
+            relief="solid"
+        )
+        style.map("ModernBrown.TButton",
+            background=[('active', '#ead7c3'), ('!active', '#fff')],
+            foreground=[('active', '#3d1602'), ('!active', '#2e1300')],
+            bordercolor=[('active', '#000'), ('!active', '#000')]
+        )
+
         # Tek gün filtreleme
-        tk.Label(frm, text="Tarih (DD.MM.YYYY):", bg="white") \
+        tk.Label(frm, text="Tarih (DD.MM.YYYY):", bg=kahve_bg, font=("Segoe UI", 11, "bold"), fg="#444")\
           .grid(row=0, column=0, sticky="e", padx=5, pady=2)
-        self.date_entry = tk.Entry(frm, width=12)
+        self.date_entry = tk.Entry(frm, width=12, font=("Segoe UI", 11))
         self.date_entry.grid(row=0, column=1, sticky="w", pady=2)
-        tk.Button(frm, text="O Günün Kayıtları", command=self.show_for_date) \
-          .grid(row=0, column=2, padx=10)
+        ttk.Button(frm, text="O Günün Kayıtları", style="ModernBrown.TButton", width=18, command=self.show_for_date)\
+          .grid(row=0, column=2, padx=(18, 4), pady=4)
 
         # Aralıkla filtreleme
-        tk.Label(frm, text="Başlangıç (DD.MM.YYYY):", bg="white") \
+        tk.Label(frm, text="Başlangıç (DD.MM.YYYY):", bg=kahve_bg, font=("Segoe UI", 11, "bold"), fg="#444")\
           .grid(row=1, column=0, sticky="e", padx=5, pady=2)
-        self.start_entry = tk.Entry(frm, width=12)
+        self.start_entry = tk.Entry(frm, width=12, font=("Segoe UI", 11))
         self.start_entry.grid(row=1, column=1, sticky="w", pady=2)
 
-        tk.Label(frm, text="Bitiş (DD.MM.YYYY):", bg="white") \
+        tk.Label(frm, text="Bitiş (DD.MM.YYYY):", bg=kahve_bg, font=("Segoe UI", 11, "bold"), fg="#444")\
           .grid(row=2, column=0, sticky="e", padx=5, pady=2)
-        self.end_entry = tk.Entry(frm, width=12)
+        self.end_entry = tk.Entry(frm, width=12, font=("Segoe UI", 11))
         self.end_entry.grid(row=2, column=1, sticky="w", pady=2)
 
-        tk.Button(frm, text="Aralığa Göre Göster", command=self.show_range) \
-          .grid(row=1, column=2, rowspan=2, padx=10)
+        ttk.Button(frm, text="Aralığa Göre Göster", style="ModernBrown.TButton", width=18, command=self.show_range)\
+          .grid(row=1, column=2, rowspan=2, padx=(18, 4), pady=4)
 
-        # Geri butonu
-        tk.Button(self, text="Geri", command=controller.go_back).pack(pady=5)
+        # Geri butonu (altta, modern)
+        btnf = tk.Frame(self, bg=kahve_bg)
+        btnf.pack(pady=14)
+        ttk.Button(btnf, text="Geri", style="ModernBrown.TButton", width=14, command=controller.go_back).pack()
 
-        # Sonuçları gösterecek Text widget
-        self.txt = tk.Text(self, width=80, height=15)
-        self.txt.pack(pady=10)
+        # Sonuçları gösterecek tablo
+        self.tree = ttk.Treeview(self, columns=("tarih", "birim"), show="headings", height=15)
+        self.tree.heading("tarih", text="Tarih/Saat", anchor="center")
+        self.tree.heading("birim", text="İnsülin (Birim)", anchor="center")
+        self.tree.column("tarih", width=200, anchor="center")
+        self.tree.column("birim", width=140, anchor="center")
+        self.tree.pack(padx=20, pady=(10, 18), fill="x")
+        # Satır renkleri: kahverengiyle uyumlu
+        self.tree.tag_configure("even", background="#ede2d6")
+        self.tree.tag_configure("odd", background="#fff7ee")
+
+    # fill_table, show_for_date, show_range, _run_and_display metotları aynen kalabilir.
+
+
+    def fill_table(self, rows):
+        # Tabloyu temizle
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        # Yeni verileri ekle
+        for idx, (ts, birim) in enumerate(rows):
+            tag = "even" if idx % 2 == 0 else "odd"
+            tarih_str = ts.strftime('%d.%m.%Y %H:%M:%S') if hasattr(ts, 'strftime') else str(ts)
+            self.tree.insert("", "end", values=(tarih_str, birim), tags=(tag,))
 
     def show_for_date(self):
         """Tek bir gün için DD.MM.YYYY formatında filtrele."""
@@ -2843,7 +3115,7 @@ class InsulinViewFrame(tk.Frame):
         self._run_and_display(query, params)
 
     def _run_and_display(self, query, params):
-        """Sorguyu çalıştır ve Text widget'a sonuçları yaz."""
+        """Sorguyu çalıştır ve tabloya sonuçları yaz."""
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
             cur  = conn.cursor()
@@ -2856,16 +3128,14 @@ class InsulinViewFrame(tk.Frame):
             cur.close()
             conn.close()
 
-        self.txt.delete("1.0", "end")
         if not rows:
-            self.txt.insert("end", "Kayıt bulunamadı.")
+            self.fill_table([])
+            # Boş tabloya bir mesaj satırı da ekleyebilirsin istersen:
+            # self.tree.insert("", "end", values=("Kayıt bulunamadı.", ""))
             return
 
-        for ts, birim in rows:
-            self.txt.insert(
-                "end",
-                f"{ts.strftime('%d.%m.%Y %H:%M:%S')} | {birim} ünite\n"
-            )
+        self.fill_table(rows)
+
 
 class UyariFrame(tk.Frame):
     def __init__(self, parent, controller):
@@ -2873,12 +3143,21 @@ class UyariFrame(tk.Frame):
         self.controller = controller
         self.configure(bg="white")
 
-        # Stil ayarları
-        s = ttk.Style(self)
-        # Kalın başlık fontu
-        s.configure("Treeview.Heading", font=("Arial", 12, "bold"))
-        # Satır yüksekliği ve font
-        s.configure("Treeview", rowheight=24, font=("Arial", 10))
+        style = ttk.Style()
+        style.configure(
+            "Modern.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=10,
+            background="#fff",
+            foreground="#222e44",
+            borderwidth=0
+        )
+        style.map(
+            "Modern.TButton",
+            background=[('active', '#e3eeff'), ('!active', '#fff')],
+            foreground=[('active', '#1d4e89'), ('!active', '#222e44')]
+        )
+
         
         # Başlık
         tk.Label(self, text="Doktor — Uyarılar",
@@ -2931,10 +3210,12 @@ class UyariFrame(tk.Frame):
         # Yenile / Geri butonları
         btnf = tk.Frame(self, bg="white")
         btnf.pack(pady=10, fill="x")
-        tk.Button(btnf, text="Yenile", width=12, command=self.load_warnings)\
-            .pack(side="left", padx=5)
-        tk.Button(btnf, text="Geri", width=12, command=controller.go_back)\
-            .pack(side="right", padx=5)
+
+        ttk.Button(btnf, text="Yenile", width=15, style="Modern.TButton", command=self.load_warnings)\
+            .pack(side="left", padx=10, pady=2)
+
+        ttk.Button(btnf, text="Geri", width=15, style="Modern.TButton", command=controller.go_back)\
+            .pack(side="right", padx=10, pady=2)
     def tkraise(self, aboveThis=None):
         super().tkraise(aboveThis)
         self.load_warnings()
