@@ -230,7 +230,7 @@ class WelcomeFrame(tk.Frame):
         canvas.create_text(
             sw // 2,
             text_y,
-            text="Diyabet Takip Sistemine Hoşgeldiniz",
+            text="Diyabet Takip Sistemine Hoş Geldiniz",
             font=("Arial", 32, "bold"),   # font büyütüldü
             fill="navy"
         )
