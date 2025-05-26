@@ -1494,7 +1494,11 @@ class OlcumEntryFrame(tk.Frame):
                     "Hastanın kan şekeri seviyesi 70 mg/dL'nin altına düştü. Hipoglisemi riski! Hızlı müdahale gerekebilir."
                 )
             elif sv <= 110:
-                durum = uyarı_tipi = mesaj = None
+                durum, uyarı_tipi, mesaj = (
+                    "Normal Seviye ",
+                    "Uyarı Yok",
+                    "Kan şekeri seviyesi normal aralıkta. Hiçbir işlem gerekmez."
+                )
             elif sv <= 150:
                 durum, uyarı_tipi, mesaj = (
                     "Orta Yüksek Seviye",
