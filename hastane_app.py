@@ -1375,10 +1375,11 @@ class DiyetPlanFrame(tk.Frame):
 # -----------------------------------------------------
 class DataViewFrame(tk.Frame):
     def __init__(self, parent, controller):
+        # 1) İlk satırda parent’ı master olarak veriyoruz
         super().__init__(parent)
         self.controller = controller
 
-        # BACKGROUND PNG
+        # 2) Sonra bind ve arka plan ayarları
         bg_path = os.path.join(os.path.dirname(__file__), "background.png")
         self.bg_img_raw = Image.open(bg_path)
         self.bg_img = None
@@ -1406,125 +1407,138 @@ class DataViewFrame(tk.Frame):
         tk.Label(frm, text="Tablo Seçin:", font=("Segoe UI", 12, "bold"),
                  bg="#eaf6fb", anchor="e", width=16).grid(row=0, column=0, padx=(0,10), pady=3)
         self.tbl_var = tk.StringVar(value="tbl_olcum")
-        opts = ['tbl_olcum', 'tbl_semptom', 'tbl_egzersiz_oneri', 'tbl_diyet_plani']
+        # --> Buraya doktor_kan_olcum'u da ekledik
+        opts = ['tbl_olcum', 'tbl_semptom', 'tbl_egzersiz_oneri', 'tbl_diyet_plani', 'doktor_kan_olcum']
         self.tbl_menu = ttk.Combobox(frm, textvariable=self.tbl_var, values=opts,
                                      font=("Segoe UI", 12), state="readonly", width=22)
         self.tbl_menu.grid(row=0, column=1, pady=3, sticky="w")
 
-        # Modern ttk butonlar
-        style = ttk.Style()
-        style.configure(
-            "Modern.TButton",
-            font=("Segoe UI", 11, "bold"),
-            padding=7,
-            background="#fff",
-            foreground="#232946",
-            borderwidth=0
-        )
-        style.map("Modern.TButton",
-            background=[('active', '#e3eeff'), ('!active', '#fff')],
-            foreground=[('active', '#1d4e89'), ('!active', '#232946')]
-        )
-
+        # Butonlar
         bf = tk.Frame(card, bg="#eaf6fb")
         bf.pack(pady=14)
-        ttk.Button(
-            bf, text="Göster",
-            style="Modern.TButton",
-            command=self.show_data,
-            width=14
-        ).pack(side="left", padx=8)
-        ttk.Button(
-            bf, text="Geri",
-            style="Modern.TButton",
-            command=controller.go_back,
-            width=14
-        ).pack(side="right", padx=8)
+        ttk.Button(bf, text="Göster", style="Modern.TButton", command=self.show_data, width=14).pack(side="left", padx=8)
+        ttk.Button(bf, text="Geri",    style="Modern.TButton", command=controller.go_back, width=14).pack(side="right", padx=8)
 
         self.tree = None
         self.tree_scroll = None
-
+        
     def _resize_bg(self, event):
         w, h = event.width, event.height
-        img = self.bg_img_raw.resize((max(w, 1), max(h, 1)), Image.LANCZOS)
+        img = self.bg_img_raw.resize((max(w,1), max(h,1)), Image.LANCZOS)
         self.bg_img = ImageTk.PhotoImage(img)
-        self.bg_label.config(image=self.bg_img)
+        self.bg_label.config(image=self.bg_img) 
 
     def show_data(self):
         tbl = self.tbl_var.get()
-        tc = self.controller.frames["DoctorFrame"].patient_var.get()
+        tc  = self.controller.frames["DoctorFrame"].patient_var.get()
 
+        # var olan Tree ve scrollbar'ı kaldır
         if self.tree:
             self.tree.destroy()
             self.tree_scroll.destroy()
 
-        try:
-            conn = mysql.connector.connect(**DB_CONFIG)
-            cur = conn.cursor()
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur  = conn.cursor()
 
-            # Dinamik sorgu, tarih_saat her zaman en solda
-            if tbl == "tbl_semptom":
-                query = """
-                    SELECT ts.tarih_saat, st.tur AS 'Semptom İsmi', ts.aciklama
-                    FROM tbl_semptom ts
-                    LEFT JOIN semptom_turleri st ON ts.semptom_tur_id = st.id
-                    WHERE ts.hasta_tc=%s
-                    ORDER BY ts.tarih_saat DESC LIMIT 20
-                """
-                columns = ["Tarih Saat", "Semptom İsmi", "Açıklama"]
-            elif tbl == "tbl_egzersiz_oneri":
-                query = """
-                    SELECT te.tarih_saat, et.tur AS 'Egzersiz İsmi'
-                    FROM tbl_egzersiz_oneri te
-                    LEFT JOIN egzersiz_turleri et ON te.egzersiz_tur_id = et.id
-                    WHERE te.hasta_tc=%s
-                    ORDER BY te.tarih_saat DESC LIMIT 20
-                """
-                columns = ["Tarih Saat", "Egzersiz İsmi"]
-            elif tbl == "tbl_diyet_plani":
-                query = """
-                    SELECT td.tarih_saat, dt.tur AS 'Diyet İsmi'
-                    FROM tbl_diyet_plani td
-                    LEFT JOIN diyet_turleri dt ON td.diyet_tur_id = dt.id
-                    WHERE td.hasta_tc=%s
-                    ORDER BY td.tarih_saat DESC LIMIT 20
-                """
-                columns = ["Tarih Saat", "Diyet İsmi"]
-            else:  # tbl_olcum
-                query = f"SELECT tarih_saat AS 'Tarih Saat', seviye_mgdl AS 'Seviye (mg/dl)', tur AS 'Ölçüm Türü' FROM {tbl} WHERE hasta_tc=%s ORDER BY tarih_saat DESC LIMIT 20"
-                columns = ["Tarih Saat", "Seviye (mg/dl)", "Ölçüm Türü"]
+        # Sorguyu ve kolon listesini belirle
+        if tbl == "tbl_semptom":
+            query = """
+                SELECT ts.tarih_saat, st.tur AS 'Semptom İsmi', ts.aciklama
+                FROM tbl_semptom ts
+                LEFT JOIN semptom_turleri st ON ts.semptom_tur_id = st.id
+                WHERE ts.hasta_tc=%s
+                ORDER BY ts.tarih_saat DESC
+            """
+            columns = ["Tarih Saat", "Semptom İsmi", "Açıklama"]
 
-            cur.execute(query, (tc,))
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
+        elif tbl == "tbl_egzersiz_oneri":
+            query = """
+                SELECT te.tarih_saat, et.tur AS 'Egzersiz İsmi'
+                FROM tbl_egzersiz_oneri te
+                LEFT JOIN egzersiz_turleri et ON te.egzersiz_tur_id = et.id
+                WHERE te.hasta_tc=%s
+                ORDER BY te.tarih_saat DESC
+            """
+            columns = ["Tarih Saat", "Egzersiz İsmi"]
 
-            self.setup_treeview(columns, rows)
+        elif tbl == "tbl_diyet_plani":
+            query = """
+                SELECT td.tarih_saat, dt.tur AS 'Diyet İsmi'
+                FROM tbl_diyet_plani td
+                LEFT JOIN diyet_turleri dt ON td.diyet_tur_id = dt.id
+                WHERE td.hasta_tc=%s
+                ORDER BY td.tarih_saat DESC
+            """
+            columns = ["Tarih Saat", "Diyet İsmi"]
 
-        except Exception as e:
-            messagebox.showerror("Hata", str(e))
+        elif tbl == "doktor_kan_olcum":
+            query = """
+                SELECT tarih_saat, seviye_mgdl
+                FROM doktor_kan_olcum
+                WHERE hasta_tc=%s
+                ORDER BY tarih_saat DESC
+            """
+            columns = ["Tarih Saat", "Seviye (mg/dl)"]
 
-    def setup_treeview(self, columns, rows):
+        else:  # tbl_olcum
+            query = """
+                SELECT tarih_saat AS 'Tarih Saat',
+                       seviye_mgdl AS 'Seviye (mg/dl)',
+                       tur       AS 'Ölçüm Türü'
+                FROM tbl_olcum
+                WHERE hasta_tc=%s
+                ORDER BY tarih_saat DESC
+            """
+            columns = ["Tarih Saat", "Seviye (mg/dl)", "Ölçüm Türü"]
+
+        # Veriyi çek
+        cur.execute(query, (tc,))
+        raw = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Zamanı DD.MM.YYYY HH:MM:SS formatına çevir
+        formatted = []
+        for row in raw:
+            ts = row[0]
+            if hasattr(ts, 'strftime'):
+                ts_str = ts.strftime("%d.%m.%Y %H:%M:%S")
+            else:
+                try:
+                    dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                    ts_str = dt.strftime("%d.%m.%Y %H:%M:%S")
+                except:
+                    ts_str = ts
+            formatted.append((ts_str, *row[1:]))
+
+        # Treeview’i oluştur ve veriyi yerleştir
         style = ttk.Style()
         style.theme_use("clam")
         style.configure("Treeview.Heading", font=("Arial", 11, "bold"))
         style.configure("Treeview", font=("Arial", 10), rowheight=24)
         style.map('Treeview', background=[('selected', '#ace3fc')])
         style.configure("evenrow", background="white")
-        style.configure("oddrow", background="#e2ecf7")
+        style.configure("oddrow",  background="#e2ecf7")
 
         self.tree_scroll = tk.Scrollbar(self)
         self.tree_scroll.pack(side=tk.RIGHT, fill=tk.Y, pady=10)
 
-        self.tree = ttk.Treeview(self, columns=columns, show="headings", yscrollcommand=self.tree_scroll.set, selectmode="browse")
+        self.tree = ttk.Treeview(
+            self,
+            columns=columns,
+            show="headings",
+            yscrollcommand=self.tree_scroll.set,
+            selectmode="browse"
+        )
         for col in columns:
             self.tree.heading(col, text=col)
-            self.tree.column(col, anchor="center", width=160)
-        for i, row in enumerate(rows):
+            self.tree.column(col, anchor="center")
+        for i, row in enumerate(formatted):
             tag = "evenrow" if i % 2 == 0 else "oddrow"
             self.tree.insert("", "end", values=row, tags=(tag,))
         self.tree.pack(pady=10, padx=10, fill="both", expand=True)
         self.tree_scroll.config(command=self.tree.yview)
+
 # -----------------------------------------------------
 # Hasta Paneli
 # -----------------------------------------------------
