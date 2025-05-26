@@ -209,9 +209,9 @@ CREATE TABLE doktor_kan_olcum (
   isim,
   sehir
 ) VALUES
-  ('12345678901', 'Sifre123!', 'C:\\Users\\yusuf\\OneDrive\\Masaüstü\\230202050_230202058\\Profil_fotolari\\images.jpg',   'eray.yilmaz@ornek.com',  '1980-05-10', 'E', 'Eray Yılmaz',  'Ankara'),
-  ('23456789012', 'Gizli!456', 'C:\\Users\\yusuf\\OneDrive\\Masaüstü\\230202050_230202058\\Profil_fotolari\\images.jpg',   'eray.sa@ornek.com','1975-11-22', 'K', 'Ayla Demir',   'İstanbul'),
-  ('34567890123', 'P4ssw0rd$', 'C:\\Users\\yusuf\\OneDrive\\Masaüstü\\230202050_230202058\\Profil_fotolari\\images.jpg', 	'eray.fd@ornek.com','1988-03-15', 'K', 'Meltem Kaya',  'İzmir');
+  ('12345678901', 'Sifre123!', 'C:\\Users\\yusuf\\OneDrive\\Masaüstü\\230202050_230202058\\Profil_fotolari\\doktor_1.jpg',   'eray.yilmaz@ornek.com',  '1980-05-10', 'E', 'Eray Yılmaz',  'Ankara'),
+  ('23456789012', 'Gizli!456', 'C:\\Users\\yusuf\\OneDrive\\Masaüstü\\230202050_230202058\\Profil_fotolari\\doktor_2.jpg',   'eray.sa@ornek.com','1975-11-22', 'K', 'Ayla Demir',   'İstanbul'),
+  ('34567890123', 'P4ssw0rd$', 'C:\\Users\\yusuf\\OneDrive\\Masaüstü\\230202050_230202058\\Profil_fotolari\\doktor_3.jpg', 	'eray.fd@ornek.com','1988-03-15', 'K', 'Meltem Kaya',  'İzmir');
  INSERT INTO semptom_turleri (tur) VALUES
   ('Poliüri'),('Polifaji'),('Polidipsi'),
   ('Nöropati'),('Kilo Kaybı'),('Yorgunluk'),
