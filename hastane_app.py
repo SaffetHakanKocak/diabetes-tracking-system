@@ -2792,7 +2792,6 @@ class UyariFrame(tk.Frame):
         self.controller = controller
         self.configure(bg="white")
 
-        # Stil
         style = ttk.Style()
         style.configure(
             "Modern.TButton",
@@ -2809,7 +2808,6 @@ class UyariFrame(tk.Frame):
             foreground=[('active', '#1d4e89'), ('!active', '#222e44')]
         )
 
-        # Başlık
         tk.Label(
             self,
             text="Doktor — Uyarılar",
@@ -2817,8 +2815,7 @@ class UyariFrame(tk.Frame):
             bg="white"
         ).pack(pady=10)
 
-        # Hasta seçimi
-        patients = controller.get_my_patients()  # [(tc, isim), ...]
+        patients = controller.get_my_patients() 
         options  = [tc for tc, _ in patients]
         self.patient_var = controller.frames["DoctorFrame"].patient_var
         if options:
@@ -2830,7 +2827,6 @@ class UyariFrame(tk.Frame):
             *options
         ).pack(pady=5)
 
-        # Tarih (GG.AA.YYYY) girişi
         frm_date = tk.Frame(self, bg="white")
         frm_date.pack(pady=(5,10))
         tk.Label(
@@ -2847,7 +2843,6 @@ class UyariFrame(tk.Frame):
             font=("Segoe UI", 11)
         ).pack(side="left", padx=(6,0))
 
-        # ACİL Uyarılar tablosu
         tk.Label(
             self,
             text="ACİL UYARILAR",
@@ -2866,7 +2861,6 @@ class UyariFrame(tk.Frame):
         self.acil_tv.pack(padx=10, pady=(0,5), fill="x")
         self._add_scrollbar(self.acil_tv)
 
-        # DİĞER Uyarılar tablosu
         tk.Label(
             self,
             text="DİĞER UYARILAR",
@@ -2885,7 +2879,6 @@ class UyariFrame(tk.Frame):
         self.diger_tv.pack(padx=10, pady=(0,5), fill="x")
         self._add_scrollbar(self.diger_tv)
 
-        # Butonlar
         btnf = tk.Frame(self, bg="white")
         btnf.pack(side="bottom", fill="x", pady=10)
         ttk.Button(
@@ -2938,19 +2931,16 @@ class UyariFrame(tk.Frame):
         cur.close()
         conn.close()
 
-        # Temizle
         for tv in (self.acil_tv, self.diger_tv):
             for iid in tv.get_children():
                 tv.delete(iid)
 
-        # Ayır
+
         acil_rows  = [r for r in rows if r[2]=="Acil Uyarı"]
         diger_rows = [r for r in rows if r[2]!="Acil Uyarı"]
 
-        # Ekle ve formatla
         for tv, data in ((self.acil_tv, acil_rows), (self.diger_tv, diger_rows)):
             for idx, (ts, durum, tip, msg) in enumerate(data):
-                # Zamanı DD.MM.YYYY HH:MM:SS olarak yaz
                 ts_str = ts.strftime("%d.%m.%Y %H:%M:%S") if hasattr(ts, 'strftime') else str(ts)
                 tag    = "evenrow" if idx%2==0 else "oddrow"
                 tv.insert("", "end", values=(ts_str, durum, tip, msg), tags=(tag,))
