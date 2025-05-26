@@ -2515,100 +2515,125 @@ class DoctorFilterFrame(tk.Frame):
             return []
 
     def filter(self):
-        # Tabloyu temizle
+        # Treeview’i temizle
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        tc_doc = self.controller.current_user_tc
-        min_v = self.min_entry.get().strip()
-        max_v = self.max_entry.get().strip()
+        tc_doc  = self.controller.current_user_tc
+        min_v   = self.min_entry.get().strip()
+        max_v   = self.max_entry.get().strip()
         symptom = self.symptom_var.get().strip()
 
         conn = mysql.connector.connect(**DB_CONFIG)
         cur  = conn.cursor()
 
-        # 1) Eğer hiçbir filtre girilmediyse → tüm hastalara ait olcum & semptom
+        records = []
+
+        # --- 1) Filtre yoksa tüm kayıtlar ---
         if not (min_v or max_v or symptom):
-            # Kan şekeri kayıtları
+            # Hasta kan şekeri
             cur.execute("""
-                SELECT h.kullanici_adi, h.isim, o.tarih_saat, 'Kan Şekeri', o.seviye_mgdl
+                SELECT h.kullanici_adi,
+                       h.isim,
+                       o.tarih_saat,
+                       'Kan Şekeri' AS tip,
+                       o.seviye_mgdl
                 FROM hasta h
                 JOIN tbl_olcum o ON h.kullanici_adi = o.hasta_tc
                 WHERE h.doktor_tc = %s
-                ORDER BY o.tarih_saat DESC
             """, (tc_doc,))
-            for tc, isim, ts, tip, val in cur.fetchall():
-                self.tree.insert("", "end", values=(
-                    tc,
-                    isim,
-                    ts.strftime("%d.%m.%Y %H:%M:%S"),
-                    tip,
-                    val
-                ))
+            records += cur.fetchall()
+
             # Belirti kayıtları
             cur.execute("""
-                SELECT h.kullanici_adi, h.isim, s.tarih_saat, 'Belirti', st.tur
+                SELECT h.kullanici_adi,
+                       h.isim,
+                       s.tarih_saat,
+                       'Belirti' AS tip,
+                       st.tur AS deger
                 FROM hasta h
                 JOIN tbl_semptom s ON h.kullanici_adi = s.hasta_tc
                 JOIN semptom_turleri st ON s.semptom_tur_id = st.id
                 WHERE h.doktor_tc = %s
-                ORDER BY s.tarih_saat DESC
             """, (tc_doc,))
-            for tc, isim, ts, tip, val in cur.fetchall():
-                self.tree.insert("", "end", values=(
-                    tc,
-                    isim,
-                    ts.strftime("%d.%m.%Y %H:%M:%S"),
-                    tip,
-                    val
-                ))
+            records += cur.fetchall()
+
+            # Doktorun ölçümleri
+            cur.execute("""
+                SELECT h.kullanici_adi,
+                       h.isim,
+                       d.tarih_saat,
+                       'Kan Şekeri' AS tip,
+                       d.seviye_mgdl
+                FROM hasta h
+                JOIN doktor_kan_olcum d ON h.kullanici_adi = d.hasta_tc
+                WHERE h.doktor_tc = %s
+            """, (tc_doc,))
+            records += cur.fetchall()
 
         else:
-            # 2) Min/Max kan seviyesi filtresi
+            # --- 2) Min/Max filtresi ---
             if min_v and max_v:
                 try:
                     mn, mx = int(min_v), int(max_v)
+
+                    # Hasta ölçümleri
                     cur.execute("""
-                        SELECT h.kullanici_adi, h.isim, o.tarih_saat, 'Kan Şekeri', o.seviye_mgdl
+                        SELECT h.kullanici_adi,
+                               h.isim,
+                               o.tarih_saat,
+                               'Kan Şekeri' AS tip,
+                               o.seviye_mgdl
                         FROM hasta h
                         JOIN tbl_olcum o ON h.kullanici_adi = o.hasta_tc
                         WHERE h.doktor_tc = %s
                           AND o.seviye_mgdl BETWEEN %s AND %s
-                        ORDER BY o.tarih_saat DESC
                     """, (tc_doc, mn, mx))
-                    for tc, isim, ts, tip, val in cur.fetchall():
-                        self.tree.insert("", "end", values=(
-                            tc,
-                            isim,
-                            ts.strftime("%d.%m.%Y %H:%M:%S"),
-                            tip,
-                            val
-                        ))
+                    records += cur.fetchall()
+
+                    # Doktor ölçümleri
+                    cur.execute("""
+                        SELECT h.kullanici_adi,
+                               h.isim,
+                               d.tarih_saat,
+                               'Kan Şekeri' AS tip,
+                               d.seviye_mgdl
+                        FROM hasta h
+                        JOIN doktor_kan_olcum d ON h.kullanici_adi = d.hasta_tc
+                        WHERE h.doktor_tc = %s
+                          AND d.seviye_mgdl BETWEEN %s AND %s
+                    """, (tc_doc, mn, mx))
+                    records += cur.fetchall()
+
                 except ValueError:
                     messagebox.showerror("Hata", "Min/Max seviye sayısal olmalı.")
 
-            # 3) Belirti filtresi
+            # --- 3) Belirti filtresi ---
             if symptom:
                 cur.execute("""
-                    SELECT h.kullanici_adi, h.isim, s.tarih_saat, 'Belirti', st.tur
+                    SELECT h.kullanici_adi,
+                           h.isim,
+                           s.tarih_saat,
+                           'Belirti' AS tip,
+                           st.tur AS deger
                     FROM hasta h
                     JOIN tbl_semptom s ON h.kullanici_adi = s.hasta_tc
                     JOIN semptom_turleri st ON s.semptom_tur_id = st.id
                     WHERE h.doktor_tc = %s
                       AND st.tur = %s
-                    ORDER BY s.tarih_saat DESC
                 """, (tc_doc, symptom))
-                for tc, isim, ts, tip, val in cur.fetchall():
-                    self.tree.insert("", "end", values=(
-                        tc,
-                        isim,
-                        ts.strftime("%d.%m.%Y %H:%M:%S"),
-                        tip,
-                        val
-                    ))
+                records += cur.fetchall()
 
         cur.close()
         conn.close()
+
+        # --- 4) Tarihe göre azalan sırala ve Treeview’e ekle ---
+        records.sort(key=lambda r: r[2], reverse=True)
+        for tc, isim, ts, tip, val in records:
+            t_str = ts.strftime("%d.%m.%Y %H:%M:%S") if hasattr(ts, 'strftime') else str(ts)
+            self.tree.insert("", "end", values=(tc, isim, t_str, tip, val))
+
+
    
 class DoctorGraphFrame(tk.Frame):
     def __init__(self, parent, controller):
