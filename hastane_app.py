@@ -2787,6 +2787,8 @@ class UyariFrame(tk.Frame):
         super().__init__(parent)
         self.controller = controller
         self.configure(bg="white")
+
+        # Stil
         style = ttk.Style()
         style.configure(
             "Modern.TButton",
@@ -2802,21 +2804,53 @@ class UyariFrame(tk.Frame):
             background=[('active', '#e3eeff'), ('!active', '#fff')],
             foreground=[('active', '#1d4e89'), ('!active', '#222e44')]
         )
-        tk.Label(self,
-                 text="Doktor — Uyarılar",
-                 font=("Arial", 20, "bold"),
-                 bg="white")\
-          .pack(pady=10)
-        patients = controller.get_my_patients() 
+
+        # Başlık
+        tk.Label(
+            self,
+            text="Doktor — Uyarılar",
+            font=("Arial", 20, "bold"),
+            bg="white"
+        ).pack(pady=10)
+
+        # Hasta seçimi
+        patients = controller.get_my_patients()  # [(tc, isim), ...]
         options  = [tc for tc, _ in patients]
         self.patient_var = controller.frames["DoctorFrame"].patient_var
         if options:
             self.patient_var.set(options[0])
-        ttk.OptionMenu(self,
-                       self.patient_var,
-                       self.patient_var.get(),
-                       *options)\
-           .pack(pady=5)
+        ttk.OptionMenu(
+            self,
+            self.patient_var,
+            self.patient_var.get(),
+            *options
+        ).pack(pady=5)
+
+        # Tarih (GG.AA.YYYY) girişi
+        frm_date = tk.Frame(self, bg="white")
+        frm_date.pack(pady=(5,10))
+        tk.Label(
+            frm_date,
+            text="Tarih (GG.AA.YYYY):",
+            font=("Segoe UI", 11, "bold"),
+            bg="white"
+        ).pack(side="left")
+        self.date_var = tk.StringVar(value=datetime.now().strftime("%d.%m.%Y"))
+        tk.Entry(
+            frm_date,
+            textvariable=self.date_var,
+            width=12,
+            font=("Segoe UI", 11)
+        ).pack(side="left", padx=(6,0))
+
+        # ACİL Uyarılar tablosu
+        tk.Label(
+            self,
+            text="ACİL UYARILAR",
+            font=("Arial", 15, "bold"),
+            bg="white"
+        ).pack(pady=(15,0), anchor="w", padx=10)
+
         self.acil_tv = ttk.Treeview(
             self,
             columns=("tarih_saat", "durum", "uyari_tipi", "mesaj"),
@@ -2824,30 +2858,18 @@ class UyariFrame(tk.Frame):
             selectmode="none",
             height=8
         )
-        vsb1 = ttk.Scrollbar(self,
-                             orient="vertical",
-                             command=self.acil_tv.yview)
-        self.acil_tv.configure(yscrollcommand=vsb1.set)
-
-        for col in ("tarih_saat", "durum", "uyari_tipi", "mesaj"):
-            self.acil_tv.heading(col,
-                                 text=col.replace("_", " ").title(),
-                                 anchor="center")
-            self.acil_tv.column(col,
-                                anchor="w",
-                                width=(150 if col!="mesaj" else 400))
-
-        self.acil_tv.tag_configure("evenrow", background="#e6f2ff")
-        self.acil_tv.tag_configure("oddrow",  background="white")
-
-        tk.Label(self,
-                 text="ACİL UYARILAR",
-                 font=("Arial", 15, "bold"),
-                 bg="white")\
-          .pack(pady=(15,0), anchor="w", padx=10)
-
+        self._setup_tree(self.acil_tv)
         self.acil_tv.pack(padx=10, pady=(0,5), fill="x")
-        vsb1.place(in_=self.acil_tv, relx=1.0, rely=0, relheight=1.0)
+        self._add_scrollbar(self.acil_tv)
+
+        # DİĞER Uyarılar tablosu
+        tk.Label(
+            self,
+            text="DİĞER UYARILAR",
+            font=("Arial", 15, "bold"),
+            bg="white"
+        ).pack(pady=(15,0), anchor="w", padx=10)
+
         self.diger_tv = ttk.Treeview(
             self,
             columns=("tarih_saat", "durum", "uyari_tipi", "mesaj"),
@@ -2855,79 +2877,80 @@ class UyariFrame(tk.Frame):
             selectmode="none",
             height=6
         )
-        vsb2 = ttk.Scrollbar(self,
-                             orient="vertical",
-                             command=self.diger_tv.yview)
-        self.diger_tv.configure(yscrollcommand=vsb2.set)
-
-        for col in ("tarih_saat", "durum", "uyari_tipi", "mesaj"):
-            self.diger_tv.heading(col,
-                                  text=col.replace("_", " ").title(),
-                                  anchor="w")
-            self.diger_tv.column(col,
-                                 anchor="w",
-                                 width=(150 if col!="mesaj" else 400))
-
-        self.diger_tv.tag_configure("evenrow", background="#e6f2ff")
-        self.diger_tv.tag_configure("oddrow",  background="white")
-
-        tk.Label(self,
-                 text="DİĞER UYARILAR",
-                 font=("Arial", 15, "bold"),
-                 bg="white")\
-          .pack(pady=(15,0), anchor="w", padx=10)
-
+        self._setup_tree(self.diger_tv)
         self.diger_tv.pack(padx=10, pady=(0,5), fill="x")
-        vsb2.place(in_=self.diger_tv, relx=1.0, rely=0, relheight=1.0)
+        self._add_scrollbar(self.diger_tv)
+
+        # Butonlar
         btnf = tk.Frame(self, bg="white")
         btnf.pack(side="bottom", fill="x", pady=10)
-
         ttk.Button(
-            btnf,
-            text="Yenile",
-            width=15,
-            style="Modern.TButton",
+            btnf, text="Yenile",
+            width=15, style="Modern.TButton",
             command=self.load_warnings
-        ).pack(side="left", padx=10, pady=2)
-
+        ).pack(side="left", padx=10)
         ttk.Button(
-            btnf,
-            text="Geri",
-            width=15,
-            style="Modern.TButton",
+            btnf, text="Geri",
+            width=15, style="Modern.TButton",
             command=controller.go_back
-        ).pack(side="right", padx=10, pady=2)
+        ).pack(side="right", padx=10)
+
+    def _setup_tree(self, tree):
+        for col in ("tarih_saat", "durum", "uyari_tipi", "mesaj"):
+            tree.heading(col, text=col.replace("_", " ").title(), anchor="center")
+            tree.column(col, width=(150 if col!="mesaj" else 400), anchor="w")
+        tree.tag_configure("evenrow", background="#e6f2ff")
+        tree.tag_configure("oddrow",  background="white")
+
+    def _add_scrollbar(self, tree):
+        vsb = ttk.Scrollbar(self, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=vsb.set)
+        vsb.place(in_=tree, relx=1.0, rely=0, relheight=1.0)
 
     def tkraise(self, aboveThis=None):
         super().tkraise(aboveThis)
         self.load_warnings()
 
     def load_warnings(self):
-        tc = self.patient_var.get()
+        tc        = self.patient_var.get()
+        date_str  = self.date_var.get().strip()
+        try:
+            dt       = datetime.strptime(date_str, "%d.%m.%Y")
+            mysql_dt = dt.strftime("%Y-%m-%d")
+        except ValueError:
+            messagebox.showerror("Geçersiz Tarih", "Tarih GG.AA.YYYY formatında olmalı.")
+            return
+
         conn = mysql.connector.connect(**DB_CONFIG)
         cur  = conn.cursor()
-        cur.execute(
-            "SELECT tarih_saat, durum, uyarı_tipi, mesaj "
-            "FROM uyarilar "
-            "WHERE hasta_tc=%s "
-            "ORDER BY tarih_saat DESC",
-            (tc,)
-        )
+        cur.execute("""
+            SELECT tarih_saat, durum, uyarı_tipi, mesaj
+            FROM uyarilar
+            WHERE hasta_tc=%s
+              AND DATE(tarih_saat)=%s
+            ORDER BY tarih_saat DESC
+        """, (tc, mysql_dt))
         rows = cur.fetchall()
         cur.close()
         conn.close()
+
+        # Temizle
         for tv in (self.acil_tv, self.diger_tv):
             for iid in tv.get_children():
                 tv.delete(iid)
-        acil_rows  = [r for r in rows if r[2] == "Acil Uyarı"]
-        diger_rows = [r for r in rows if r[2] != "Acil Uyarı"]
 
+        # Ayır
+        acil_rows  = [r for r in rows if r[2]=="Acil Uyarı"]
+        diger_rows = [r for r in rows if r[2]!="Acil Uyarı"]
+
+        # Ekle ve formatla
         for tv, data in ((self.acil_tv, acil_rows), (self.diger_tv, diger_rows)):
-            for idx, (tarih, durum, tip, msg) in enumerate(data):
-                tag = "evenrow" if idx % 2 == 0 else "oddrow"
-                tv.insert("", "end",
-                          values=(tarih, durum, tip, msg),
-                          tags=(tag,))
+            for idx, (ts, durum, tip, msg) in enumerate(data):
+                # Zamanı DD.MM.YYYY HH:MM:SS olarak yaz
+                ts_str = ts.strftime("%d.%m.%Y %H:%M:%S") if hasattr(ts, 'strftime') else str(ts)
+                tag    = "evenrow" if idx%2==0 else "oddrow"
+                tv.insert("", "end", values=(ts_str, durum, tip, msg), tags=(tag,))
+
 if __name__ == "__main__":
     app = App()
     app.mainloop()
