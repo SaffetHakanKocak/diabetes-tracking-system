@@ -3090,12 +3090,16 @@ class InsulinViewFrame(tk.Frame):
         self.configure(bg=kahve_bg)
 
         # Başlık
-        tk.Label(self, text="İnsülin Takip", font=("Segoe UI", 19, "bold"), bg=kahve_bg, fg="#252a34").pack(pady=18)
+        tk.Label(self, text="İnsülin Takip",
+                 font=("Segoe UI", 19, "bold"),
+                 bg=kahve_bg, fg="#252a34")\
+          .pack(pady=18)
 
+        # Filtre alanları için çerçeve
         frm = tk.Frame(self, bg=kahve_bg)
         frm.pack(pady=5)
 
-        # Modern buton stili - siyah border
+        # Buton stili
         style = ttk.Style()
         style.configure(
             "ModernBrown.TButton",
@@ -3113,58 +3117,67 @@ class InsulinViewFrame(tk.Frame):
         )
 
         # Tek gün filtreleme
-        tk.Label(frm, text="Tarih (DD.MM.YYYY):", bg=kahve_bg, font=("Segoe UI", 11, "bold"), fg="#444")\
+        tk.Label(frm, text="Tarih (DD.MM.YYYY):",
+                 bg=kahve_bg, font=("Segoe UI", 11, "bold"), fg="#444")\
           .grid(row=0, column=0, sticky="e", padx=5, pady=2)
         self.date_entry = tk.Entry(frm, width=12, font=("Segoe UI", 11))
         self.date_entry.grid(row=0, column=1, sticky="w", pady=2)
-        ttk.Button(frm, text="O Günün Kayıtları", style="ModernBrown.TButton", width=18, command=self.show_for_date)\
+        ttk.Button(frm, text="O Günün Kayıtları",
+                   style="ModernBrown.TButton", width=18,
+                   command=self.show_for_date)\
           .grid(row=0, column=2, padx=(18, 4), pady=4)
 
         # Aralıkla filtreleme
-        tk.Label(frm, text="Başlangıç (DD.MM.YYYY):", bg=kahve_bg, font=("Segoe UI", 11, "bold"), fg="#444")\
+        tk.Label(frm, text="Başlangıç (DD.MM.YYYY):",
+                 bg=kahve_bg, font=("Segoe UI", 11, "bold"), fg="#444")\
           .grid(row=1, column=0, sticky="e", padx=5, pady=2)
         self.start_entry = tk.Entry(frm, width=12, font=("Segoe UI", 11))
         self.start_entry.grid(row=1, column=1, sticky="w", pady=2)
 
-        tk.Label(frm, text="Bitiş (DD.MM.YYYY):", bg=kahve_bg, font=("Segoe UI", 11, "bold"), fg="#444")\
+        tk.Label(frm, text="Bitiş (DD.MM.YYYY):",
+                 bg=kahve_bg, font=("Segoe UI", 11, "bold"), fg="#444")\
           .grid(row=2, column=0, sticky="e", padx=5, pady=2)
         self.end_entry = tk.Entry(frm, width=12, font=("Segoe UI", 11))
         self.end_entry.grid(row=2, column=1, sticky="w", pady=2)
 
-        ttk.Button(frm, text="Aralığa Göre Göster", style="ModernBrown.TButton", width=18, command=self.show_range)\
+        ttk.Button(frm, text="Aralığa Göre Göster",
+                   style="ModernBrown.TButton", width=18,
+                   command=self.show_range)\
           .grid(row=1, column=2, rowspan=2, padx=(18, 4), pady=4)
 
-        # Geri butonu (altta, modern)
+        # Geri butonu
         btnf = tk.Frame(self, bg=kahve_bg)
         btnf.pack(pady=14)
-        ttk.Button(btnf, text="Geri", style="ModernBrown.TButton", width=14, command=controller.go_back).pack()
+        ttk.Button(btnf, text="Geri",
+                   style="ModernBrown.TButton", width=14,
+                   command=controller.go_back).pack()
 
-        # Sonuçları gösterecek tablo
-        self.tree = ttk.Treeview(self, columns=("tarih", "birim"), show="headings", height=15)
+        # Treeview: Tarih, Birim, Öğün
+        self.tree = ttk.Treeview(self,
+                                 columns=("tarih", "birim", "ogun"),
+                                 show="headings", height=15)
         self.tree.heading("tarih", text="Tarih/Saat", anchor="center")
         self.tree.heading("birim", text="İnsülin (Birim)", anchor="center")
+        self.tree.heading("ogun", text="Öğün", anchor="center")
         self.tree.column("tarih", width=200, anchor="center")
         self.tree.column("birim", width=140, anchor="center")
+        self.tree.column("ogun", width=100, anchor="center")
         self.tree.pack(padx=20, pady=(10, 18), fill="x")
-        # Satır renkleri: kahverengiyle uyumlu
         self.tree.tag_configure("even", background="#ede2d6")
         self.tree.tag_configure("odd", background="#fff7ee")
 
-    # fill_table, show_for_date, show_range, _run_and_display metotları aynen kalabilir.
-
-
     def fill_table(self, rows):
-        # Tabloyu temizle
+        """Treeview'i temizleyip yeni verileri ekler."""
         for item in self.tree.get_children():
             self.tree.delete(item)
-        # Yeni verileri ekle
-        for idx, (ts, birim) in enumerate(rows):
+        for idx, (ts, birim, ogun) in enumerate(rows):
             tag = "even" if idx % 2 == 0 else "odd"
             tarih_str = ts.strftime('%d.%m.%Y %H:%M:%S') if hasattr(ts, 'strftime') else str(ts)
-            self.tree.insert("", "end", values=(tarih_str, birim), tags=(tag,))
+            self.tree.insert("", "end",
+                             values=(tarih_str, birim, ogun or "-"),
+                             tags=(tag,))
 
     def show_for_date(self):
-        """Tek bir gün için DD.MM.YYYY formatında filtrele."""
         date_str = self.date_entry.get().strip()
         try:
             dt = datetime.strptime(date_str, "%d.%m.%Y")
@@ -3175,43 +3188,56 @@ class InsulinViewFrame(tk.Frame):
 
         tc = self.controller.current_user_tc
         query = """
-            SELECT tarih_saat, birim_u
-            FROM tbl_insulin
-            WHERE hasta_tc=%s AND DATE(tarih_saat)=%s
-            ORDER BY tarih_saat DESC
+            SELECT 
+                i.tarih_saat,
+                i.birim_u,
+                o.tur
+            FROM tbl_insulin AS i
+            LEFT JOIN tbl_olcum AS o
+            ON i.hasta_tc   = o.hasta_tc
+            AND i.tarih_saat = o.tarih_saat
+            WHERE i.hasta_tc = %s
+            AND DATE(i.tarih_saat) = %s
+            ORDER BY i.tarih_saat DESC
         """
         params = (tc, mysql_date)
         self._run_and_display(query, params)
 
     def show_range(self):
-        """Başlangıç ve bitiş tarihlerine göre DD.MM.YYYY formatında filtrele."""
         start_str = self.start_entry.get().strip()
-        end_str   = self.end_entry.get().strip()
+        end_str = self.end_entry.get().strip()
         try:
             dt_start = datetime.strptime(start_str, "%d.%m.%Y")
-            dt_end   = datetime.strptime(end_str,   "%d.%m.%Y")
+            dt_end = datetime.strptime(end_str, "%d.%m.%Y")
             start_date = dt_start.strftime("%Y-%m-%d")
-            end_date   = dt_end.strftime("%Y-%m-%d")
+            end_date = dt_end.strftime("%Y-%m-%d")
         except ValueError:
-            messagebox.showerror("Geçersiz Tarih", "Başlangıç ve Bitiş için DD.MM.YYYY formatını kullanın.")
+            messagebox.showerror("Geçersiz Tarih",
+                                 "Başlangıç ve Bitiş için DD.MM.YYYY formatını kullanın.")
             return
 
         tc = self.controller.current_user_tc
         query = """
-            SELECT tarih_saat, birim_u
-            FROM tbl_insulin
-            WHERE hasta_tc=%s
-              AND DATE(tarih_saat) BETWEEN %s AND %s
-            ORDER BY tarih_saat DESC
+            SELECT 
+                i.tarih_saat,
+                i.birim_u,
+                o.tur
+            FROM tbl_insulin AS i
+            LEFT JOIN tbl_olcum AS o
+            ON i.hasta_tc   = o.hasta_tc
+            AND i.tarih_saat = o.tarih_saat
+            WHERE i.hasta_tc = %s
+            AND DATE(i.tarih_saat) BETWEEN %s AND %s
+            ORDER BY i.tarih_saat DESC
         """
         params = (tc, start_date, end_date)
         self._run_and_display(query, params)
 
     def _run_and_display(self, query, params):
-        """Sorguyu çalıştır ve tabloya sonuçları yaz."""
+        """SQL sorgusunu çalıştırır, hatayı gösterir ya da sonuçları doldurur."""
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
-            cur  = conn.cursor()
+            cur = conn.cursor()
             cur.execute(query, params)
             rows = cur.fetchall()
         except Exception as e:
@@ -3220,12 +3246,6 @@ class InsulinViewFrame(tk.Frame):
         finally:
             cur.close()
             conn.close()
-
-        if not rows:
-            self.fill_table([])
-            # Boş tabloya bir mesaj satırı da ekleyebilirsin istersen:
-            # self.tree.insert("", "end", values=("Kayıt bulunamadı.", ""))
-            return
 
         self.fill_table(rows)
 
