@@ -16,6 +16,8 @@ from zoneinfo import ZoneInfo
 import random
 from datetime import datetime
 import os
+from matplotlib.dates import DateFormatter
+
 #denemeeeeeeeeeeeeeeee
 # — EKLENECEK: Ölçüm aralıkları sabitleri
 VALID_WINDOWS = {
@@ -2619,10 +2621,10 @@ class DoctorGraphFrame(tk.Frame):
 
         # Başlık: sade, modern ve ortalanmış
         title = tk.Label(
-            card, 
-            text="Doktor — Grafikler", 
-            font=("Segoe UI", 22, "bold"), 
-            bg="#f4f6fb", 
+            card,
+            text="Doktor — Grafikler",
+            font=("Segoe UI", 22, "bold"),
+            bg="#f4f6fb",
             fg="#262b37"
         )
         title.pack(pady=(18, 32))
@@ -2632,6 +2634,7 @@ class DoctorGraphFrame(tk.Frame):
         btnf.pack(pady=4)
 
         style = ttk.Style()
+        style.theme_use("clam")
         style.configure(
             "Modern.TButton",
             font=("Segoe UI", 13, "bold"),
@@ -2646,7 +2649,7 @@ class DoctorGraphFrame(tk.Frame):
             foreground=[('active', '#1d4e89'), ('!active', '#252a34')]
         )
 
-        # Butonlar büyük, geniş ve yazı tamamen görünür
+        # Grafik butonları
         ttk.Button(
             btnf,
             text="Kan Şekeri & Diyet/Egzersiz",
@@ -2663,6 +2666,15 @@ class DoctorGraphFrame(tk.Frame):
             width=28
         ).pack(side="left", padx=22)
 
+        # Yeni buton: Egzersiz/Diyet Geçmişi
+        ttk.Button(
+            btnf,
+            text="Egzersiz/Diyet Geçmişi",
+            style="Modern.TButton",
+            command=self.show_ex_diet_history,
+            width=28
+        ).pack(side="left", padx=22)
+
         ttk.Button(
             btnf,
             text="Geri",
@@ -2671,16 +2683,19 @@ class DoctorGraphFrame(tk.Frame):
             width=16
         ).pack(side="left", padx=22)
 
-        # Canvas placeholder (grafik için)
+        # Görsel veya tablo placeholder
         self.canvas = None
-
+        self.tree = None
 
     def _clear_canvas(self):
-        """Önceki grafiği temizle."""
+        """Önceki grafiği veya tabloyu temizle."""
         if self.canvas:
             self.canvas.get_tk_widget().pack_forget()
             plt.close('all')
             self.canvas = None
+        if self.tree:
+            self.tree.destroy()
+            self.tree = None
 
     def _draw(self, fig):
         """Yeni matplotlib figürünü ekrana çiz."""
@@ -2690,7 +2705,7 @@ class DoctorGraphFrame(tk.Frame):
         self.canvas.get_tk_widget().pack(fill="both", expand=True)
 
     def plot_ex_diet(self):
-        """Egzersiz ve diyet uyum oranlarını pasta grafiğiyle göster. (Değişmedi)"""
+        # mevcut egzersiz/diyet uyum oranı grafiği
         tc = self.controller.frames["DoctorFrame"].patient_var.get()
         conn = mysql.connector.connect(**DB_CONFIG)
         cur = conn.cursor()
@@ -2700,8 +2715,7 @@ class DoctorGraphFrame(tk.Frame):
             "SELECT COUNT(*) FROM tbl_egzersiz_takip WHERE hasta_tc=%s", (tc,))
         total_ex = cur.fetchone()[0] or 0
         cur.execute(
-            "SELECT COUNT(*) FROM tbl_egzersiz_takip "
-            "WHERE hasta_tc=%s AND yapilan_egzersiz NOT LIKE 'Egzersiz yapılmadı'", (tc,))
+            "SELECT COUNT(*) FROM tbl_egzersiz_takip WHERE hasta_tc=%s AND yapilan_egzersiz NOT LIKE 'Egzersiz yapılmadı'", (tc,))
         done_ex = cur.fetchone()[0] or 0
 
         # Diyet uyum
@@ -2709,8 +2723,7 @@ class DoctorGraphFrame(tk.Frame):
             "SELECT COUNT(*) FROM tbl_diyet_takip WHERE hasta_tc=%s", (tc,))
         total_di = cur.fetchone()[0] or 0
         cur.execute(
-            "SELECT COUNT(*) FROM tbl_diyet_takip "
-            "WHERE hasta_tc=%s AND uygulanan_diyet NOT LIKE 'Diyet uygulanmadı'", (tc,))
+            "SELECT COUNT(*) FROM tbl_diyet_takip WHERE hasta_tc=%s AND uygulanan_diyet NOT LIKE 'Diyet uygulanmadı'", (tc,))
         done_di = cur.fetchone()[0] or 0
 
         cur.close(); conn.close()
@@ -2735,69 +2748,149 @@ class DoctorGraphFrame(tk.Frame):
         self._draw(fig)
 
     def plot_glucose_diet_ex(self):
-        """
-        Kan şekerini zaman serisi olarak çizer ve
-        diyet/egzersiz olaylarını o olay anındaki kan şekeri değeri
-        üzerine farklı markerlarla işaretler.
-        """
         tc = self.controller.frames["DoctorFrame"].patient_var.get()
         conn = mysql.connector.connect(**DB_CONFIG)
         cur = conn.cursor()
 
-        # 1) Tüm glukoz ölçümleri
+        # 1) Gün boyu glukoz değerleri
         cur.execute(
-            "SELECT tarih_saat, seviye_mgdl FROM tbl_olcum "
-            "WHERE hasta_tc=%s ORDER BY tarih_saat", (tc,))
+            "SELECT tarih_saat, seviye_mgdl "
+            "FROM tbl_olcum "
+            "WHERE hasta_tc=%s "
+            "ORDER BY tarih_saat",
+            (tc,)
+        )
         glucose = cur.fetchall()
 
-        # 2) Diyet ve egzersiz zamanları
+        # 2) Aynı gün içinde egzersiz kayıtları
         cur.execute(
-            "SELECT tarih_saat FROM tbl_diyet_plani "
-            "WHERE hasta_tc=%s ORDER BY tarih_saat", (tc,))
-        diet_times = [row[0] for row in cur.fetchall()]
+            "SELECT tarih_saat FROM tbl_egzersiz_takip "
+            "WHERE hasta_tc=%s ORDER BY tarih_saat",
+            (tc,)
+        )
+        ex_times = [r[0] for r in cur.fetchall()]
 
+        # 3) Aynı gün içinde diyet kayıtları
         cur.execute(
-            "SELECT tarih_saat FROM tbl_egzersiz_oneri "
-            "WHERE hasta_tc=%s ORDER BY tarih_saat", (tc,))
-        ex_times = [row[0] for row in cur.fetchall()]
+            "SELECT tarih_saat FROM tbl_diyet_takip "
+            "WHERE hasta_tc=%s ORDER BY tarih_saat",
+            (tc,)
+        )
+        di_times = [r[0] for r in cur.fetchall()]
 
+        cur.close()
+        conn.close()
+
+        if not glucose:
+            messagebox.showinfo("Bilgi", "Herhangi bir ölçüm bulunamadı.")
+            return
+
+        times, values = zip(*glucose)
+
+        # 4) Grafik oluştur
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(times, values, marker='o', linestyle='-', label='Glukoz')
+
+        # Egzersiz zamanlarını dikey çizgilerle göster
+        if ex_times:
+            ax.vlines(ex_times,
+                      ymin=min(values), ymax=max(values),
+                      colors='red', linestyles='--',
+                      label='Egzersiz')
+
+        # Diyet zamanlarını dikey çizgilerle göster
+        if di_times:
+            ax.vlines(di_times,
+                      ymin=min(values), ymax=max(values),
+                      colors='green', linestyles='-.' ,
+                      label='Diyet')
+
+        # Başlık, etiketler ve format
+        ax.set_title("Gün Boyu Glukoz & Egzersiz/Diyet Etkisi", fontsize=14, pad=12)
+        ax.set_xlabel("Tarih/Saat", fontsize=12, labelpad=8)
+        ax.set_ylabel("Kan Şekeri (mg/dL)", fontsize=12, labelpad=8)
+        ax.grid(True, linestyle=':', linewidth=0.5)
+        ax.legend(loc='upper left', frameon=False, fontsize=10)
+
+        # Tarih ekseni görünürlüğü
+        ax.xaxis.set_major_formatter(DateFormatter("%d.%m\n%H:%M"))
+        fig.autofmt_xdate()
+
+        # Ekrana çiz
+        self._draw(fig)
+
+    def show_ex_diet_history(self):
+        """Egzersiz ve diyet geçmişini tablo olarak gösterir."""
+        self._clear_canvas()
+        tc = self.controller.frames["DoctorFrame"].patient_var.get()
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        # Egzersiz kayıtları
+        cur.execute(
+            "SELECT tarih_saat, yapilan_egzersiz FROM tbl_egzersiz_takip WHERE hasta_tc=%s ORDER BY tarih_saat",
+            (tc,)
+        )
+        ex_rows = cur.fetchall()
+        # Diyet kayıtları
+        cur.execute(
+            "SELECT tarih_saat, uygulanan_diyet FROM tbl_diyet_takip WHERE hasta_tc=%s ORDER BY tarih_saat",
+            (tc,)
+        )
+        di_rows = cur.fetchall()
         cur.close(); conn.close()
 
-        # Zaman ve değer listeleri
-        times = [t for t, _ in glucose]
-        values = [v for _, v in glucose]
+        # Verileri birleştir ve sırala
+        combined = [(ts, 'Egzersiz', val) for ts, val in ex_rows] + [(ts, 'Diyet', val) for ts, val in di_rows]
+        combined.sort(key=lambda x: x[0])
 
-        # Olay anındaki en yakın ölçüm değerlerini bul
-        def nearest_value(event_time):
-            # glucose listesinde en yakın zamanı seç
-            nearest = min(glucose, key=lambda gv: abs((gv[0] - event_time).total_seconds()))
-            return nearest
+        # Stil ayarları
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "Modern.Treeview",
+            font=("Segoe UI", 11),
+            rowheight=26,
+            background="#ffffff",
+            fieldbackground="#ffffff",
+            bordercolor="#ddd",
+            borderwidth=1
+        )
+        style.configure(
+            "Modern.Treeview.Heading",
+            font=("Segoe UI", 12, "bold"),
+            background="#f0f0f0",
+            foreground="#333"
+        )
+        style.map(
+            "Modern.Treeview",
+            background=[('selected', '#ace3fc')]
+        )
+        # Alternating row renkleri
+        style.configure("evenrow", background="#e2ecf7")
+        style.configure("oddrow",  background="#ffffff")
 
-        diet_pts = [nearest_value(t) for t in diet_times]
-        ex_pts   = [nearest_value(t) for t in ex_times]
+        # Treeview oluştur
+        self.tree = ttk.Treeview(
+            self,
+            columns=("tarih", "tip", "durum"),
+            show="headings",
+            style="Modern.Treeview"
+        )
+        self.tree.heading("tarih", text="Tarih/Saat")
+        self.tree.heading("tip", text="Tip")
+        self.tree.heading("durum", text="Durum")
+        self.tree.column("tarih", anchor="center", width=180)
+        self.tree.column("tip", anchor="center",  width=100)
+        self.tree.column("durum", anchor="w",       width=260)
 
-        # Grafik oluştur
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.plot(times, values, marker='o', linestyle='-', label='Kan Şekeri')
+        # Kayıtları ekle
+        for idx, (ts, tip, durum) in enumerate(combined):
+            tag = "evenrow" if idx % 2 == 0 else "oddrow"
+            t_str = ts.strftime("%d.%m.%Y %H:%M:%S") if hasattr(ts, 'strftime') else str(ts)
+            self.tree.insert("", "end", values=(t_str, tip, durum), tags=(tag,))
 
-        # Diyet olaylarını kare marker ile işaretle
-        diet_x = [dt for dt, _ in diet_pts]
-        diet_y = [val for _, val in diet_pts]
-        ax.scatter(diet_x, diet_y, marker='s', label='Diyet')
+        self.tree.pack(fill="both", expand=True, padx=20, pady=10)
 
-        # Egzersiz olaylarını üçgen marker ile işaretle
-        ex_x = [dt for dt, _ in ex_pts]
-        ex_y = [val for _, val in ex_pts]
-        ax.scatter(ex_x, ex_y, marker='^', label='Egzersiz')
-
-        # Legend ve etiketler
-        ax.set_title("Kan Şekeri ve Diyet/Egzersiz Etkileşimi")
-        ax.set_xlabel("Tarih/Saat")
-        ax.set_ylabel("mg/dL")
-        fig.autofmt_xdate()
-        ax.legend(loc='upper left')
-
-        self._draw(fig)
 
 class PatientGraphFrame(tk.Frame):
     def __init__(self, parent, controller):
